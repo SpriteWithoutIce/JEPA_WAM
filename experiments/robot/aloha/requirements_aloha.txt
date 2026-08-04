@@ -1,0 +1,29 @@
+# Extra Python packages for `experiments/robot/aloha` after the base install in README:
+#   pip install torch==2.2.0 torchvision==0.17.0 torchaudio==2.2.0
+#   pip install -e .
+#   pip install packaging ninja
+#   pip install "flash-attn==2.5.5" --no-build-isolation
+#
+# Most training dependencies are already covered by the commands above.
+# This file only keeps the ALOHA-specific extras that are still needed.
+
+# Required by the msgpack HTTP client used in fake/real eval clients.
+msgpack
+msgpack-numpy
+
+# Required by real-world ALOHA eval modules importing `real_env.py`.
+dm-env
+ipython
+
+# Optional but recommended if you want rollout videos from `save_rollout_video()`.
+imageio[ffmpeg]
+
+# Not installable from pip here; these must come from your ROS / robot environment:
+#   rospy
+#   cv_bridge
+#   std_msgs
+#   sensor_msgs
+#   nav_msgs
+#   geometry_msgs
+#   interbotix_xs_modules
+#   interbotix_xs_msgs

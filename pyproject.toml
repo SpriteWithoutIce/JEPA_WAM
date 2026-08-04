@@ -1,0 +1,74 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jepa-wam"
+description = "jepa-wam"
+version = "0.0.1"
+readme = "README.md"
+requires-python = ">=3.8"
+keywords = ["vision-language-action models", "tiny-scale backbone", "fine-tuning", "robotic learning"]
+license = {file = "LICENSE"}
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    
+]
+
+[project.optional-dependencies]
+lerobot = [
+    "datasets==3.6.0",
+    "pyarrow>=15.0.0",
+    "pandas>=2.0.0",
+    "jsonlines>=4.0.0",
+    "huggingface-hub>=0.27.1",
+    "packaging>=24.2",
+    "av>=12.0.5,<13.0.0",
+]
+dev = [
+    "black>=24.2.0",
+    "gpustat",
+    "ipython",
+    "pre-commit",
+    "ruff>=0.2.2",
+]
+sagemaker = [
+    "boto3",
+    "sagemaker"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+exclude = ["cache"]
+
+[tool.setuptools.package-data]
+"prismatic" = ["py.typed"]
+
+[tool.black]
+line-length = 121
+target-version = ["py38", "py39", "py310"]
+preview = true
+
+[tool.ruff]
+line-length = 121
+target-version = "py38"
+
+[tool.ruff.lint]
+select = ["A", "B", "E", "F", "I", "RUF", "W"]
+ignore = ["F722"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["E402", "F401"]

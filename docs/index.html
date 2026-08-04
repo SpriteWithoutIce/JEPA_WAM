@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="JEPA-WAM learns vision-language-action policies with joint-embedding world modeling."
+    />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="JEPA-WAM" />
+    <meta
+      property="og:description"
+      content="Learning Vision-Language-Action Policies with Joint-Embedding World Modeling"
+    />
+    <meta property="og:image" content="assets/demo-poster.webp?v=20260805" />
+    <meta name="theme-color" content="#ffffff" />
+    <title>JEPA-WAM</title>
+    <link rel="icon" type="image/png" href="favicon.png?v=20260805" />
+    <link rel="stylesheet" href="styles.css?v=20260805" />
+  </head>
+  <body>
+    <main>
+      <section class="publication-header">
+        <div class="container header-container">
+          <img
+            class="project-logo"
+            src="assets/logo-ai.webp?v=20260805"
+            alt="JEPA-WAM logo"
+            width="512"
+            height="512"
+          />
+          <h1>
+            <span>JEPA-WAM</span>: Learning Vision-Language-Action Policies with
+            Joint-Embedding World Modeling
+          </h1>
+          <p class="paper-summary">
+            Latent transition prediction · Dense spatial supervision · Efficient deployment
+          </p>
+
+          <div class="project-links" aria-label="Project links">
+            <!-- Replace with the final ArXiv URL when the paper is public. -->
+            <span class="project-button is-disabled" aria-disabled="true">
+              <span>Paper</span>
+              <small>ArXiv · Coming soon</small>
+            </span>
+            <a
+              class="project-button"
+              href="https://github.com/SpriteWithoutIce/JEPA-WAM"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <span>Code</span>
+              <small>Coming soon</small>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section class="teaser-section">
+        <div class="container">
+          <video
+            autoplay
+            muted
+            loop
+            controls
+            playsinline
+            preload="metadata"
+            poster="assets/demo-poster.webp?v=20260805"
+            aria-label="JEPA-WAM real-world experiments"
+          >
+            <source src="assets/demo.mp4?v=20260805" type="video/mp4" />
+            Your browser does not support HTML video.
+          </video>
+          <p class="caption center">
+            Real-world manipulation under in-distribution and out-of-distribution settings.
+          </p>
+        </div>
+      </section>
+
+      <section class="section teaser-figure-section">
+        <div class="container teaser-figure-container">
+          <figure>
+            <img
+              class="figure teaser-figure"
+              src="assets/teaser.webp?v=20260805"
+              alt="JEPA-WAM architecture and performance overview across simulation and real-world benchmarks"
+              width="3540"
+              height="2360"
+            />
+            <figcaption>
+              JEPA-WAM couples latent transition prediction and action generation through a shared
+              predictor, improving generalization across LIBERO-Plus, RoboTwin 2.0, and real-world
+              manipulation.
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container prose">
+          <h2>Abstract</h2>
+          <p>
+            Robust robot control benefits from explicitly modeling state transitions, but
+            video-generation world action models introduce substantial deployment cost. We
+            introduce JEPA-WAM, a latent world action model built in a pretrained V-JEPA space,
+            which couples latent transition prediction with continuous action generation through a
+            shared predictor.
+          </p>
+          <p>
+            JEPA-WAM predicts a spatially structured joint current-future target that represents
+            the temporal relation between current and future observations while preserving dense
+            patch-level correspondence. Transition supervision directly shapes the backbone used
+            for action prediction, without requiring explicit future-frame generation at
+            deployment.
+          </p>
+        </div>
+      </section>
+
+      <section class="section soft-section">
+        <div class="container method-container">
+          <div class="section-heading">
+            <h2>Method</h2>
+          </div>
+          <figure>
+            <img
+              class="figure"
+              src="assets/method-balanced.webp?v=20260805"
+              alt="JEPA-WAM architecture with a shared predictor for transition prediction and action generation"
+              width="2806"
+              height="1170"
+              loading="lazy"
+            />
+            <figcaption>
+              A frozen V-JEPA 2.1 encoder constructs dense current-future transition targets. The
+              shared predictor learns the transition while producing representations for the flow
+              matching action expert.
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section class="section experiments-section">
+        <div class="container wide-container">
+          <div class="section-heading">
+            <h2>Experiments</h2>
+            <p class="section-intro">
+              JEPA-WAM is evaluated on in-distribution manipulation, scene-level OOD shifts,
+              randomized bimanual manipulation, and controlled design ablations.
+            </p>
+          </div>
+
+          <article class="table-panel panel-libero-plus">
+            <div class="table-title-row">
+              <h3>LIBERO-Plus</h3>
+              <span>Table 2 · OOD success rate (%)</span>
+            </div>
+            <div class="table-scroll">
+              <table class="data-table table-wide">
+                <thead>
+                  <tr>
+                    <th>Method</th>
+                    <th>Params.</th>
+                    <th>PT</th>
+                    <th>Camera</th>
+                    <th>Robot</th>
+                    <th>Language</th>
+                    <th>Light</th>
+                    <th>Background</th>
+                    <th>Noise</th>
+                    <th>Layout</th>
+                    <th>Avg.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="group-row"><th colspan="11">Without robot-policy pretraining</th></tr>
+                  <tr><td>VLA-Adapter</td><td>0.5</td><td>✗</td><td>36.2</td><td>37.9</td><td>74.6</td><td>70.6</td><td>76.1</td><td>58.0</td><td>69.7</td><td>60.4</td></tr>
+                  <tr><td>RoVLA</td><td>2</td><td>✗</td><td>58.4</td><td>36.3</td><td>92.9</td><td>95.6</td><td>95.0</td><td>80.9</td><td>73.0</td><td>76.0</td></tr>
+                  <tr><td>ResVLA</td><td>2</td><td>✗</td><td>49.8</td><td>59.9</td><td>88.5</td><td>90.5</td><td>94.9</td><td>76.8</td><td>79.0</td><td>77.1</td></tr>
+                  <tr class="ours"><td>JEPA-WAM (Ours)</td><td>0.5</td><td>✗</td><td>79.2</td><td>59.2</td><td>68.2</td><td>93.3</td><td>94.6</td><td>83.6</td><td>76.1</td><td><strong>79.2</strong></td></tr>
+                  <tr class="group-row"><th colspan="11">With robot-policy pretraining</th></tr>
+                  <tr><td>VLA-JEPA</td><td>2</td><td>✓</td><td>63.3</td><td>67.1</td><td>85.4</td><td>95.6</td><td>93.6</td><td>66.3</td><td>85.1</td><td>79.5</td></tr>
+                  <tr><td>PokeVLA</td><td>0.5</td><td>✓</td><td>84.7</td><td>46.1</td><td>84.8</td><td>94.6</td><td>82.6</td><td>89.8</td><td>77.2</td><td>80.0</td></tr>
+                  <tr><td>ABot-M0</td><td>4</td><td>✓</td><td>60.4</td><td>67.9</td><td>86.4</td><td>96.2</td><td>91.6</td><td>86.4</td><td>82.6</td><td>81.6</td></tr>
+                  <tr><td>Cosmos-Policy</td><td>2</td><td>✓</td><td>75.8</td><td>63.3</td><td>81.7</td><td>96.5</td><td>88.9</td><td>92.7</td><td>82.2</td><td>83.0</td></tr>
+                  <tr><td>π0.5</td><td>3</td><td>✓</td><td>69.4</td><td>75.3</td><td>82.6</td><td>96.7</td><td>96.8</td><td>84.3</td><td>86.2</td><td>84.5</td></tr>
+                  <tr><td>Being-H0.7</td><td>3</td><td>✓</td><td>82.0</td><td>59.0</td><td>82.8</td><td>97.8</td><td>90.0</td><td>93.5</td><td>88.5</td><td>84.8</td></tr>
+                  <tr class="ours"><td>π0.5 + JEPA Obj. (Ours)</td><td>3</td><td>✓</td><td>66.0</td><td>82.0</td><td>86.5</td><td>96.8</td><td>96.0</td><td>88.3</td><td>88.3</td><td><strong>86.3</strong></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="table-caption">
+              Success rates after training on LIBERO demonstrations, evaluated on seven
+              out-of-distribution shift categories without OOD fine-tuning.
+            </p>
+          </article>
+
+          <article class="table-panel panel-robotwin">
+            <div class="table-title-row">
+              <h3>RoboTwin 2.0</h3>
+              <span>Table 3 · Clean / Random success rate (%)</span>
+            </div>
+            <div class="table-scroll">
+              <table class="data-table table-robotwin">
+                <thead>
+                  <tr>
+                    <th rowspan="2">Method</th>
+                    <th colspan="2">Adjust Bottle</th>
+                    <th colspan="2">Dump Bin Bigbin</th>
+                    <th colspan="2">Shake Bottle</th>
+                    <th colspan="2">Press Stapler</th>
+                    <th colspan="2">Stack Bowls Two</th>
+                    <th colspan="2">Avg.</th>
+                  </tr>
+                  <tr>
+                    <th>Cle.</th><th>Ran.</th><th>Cle.</th><th>Ran.</th><th>Cle.</th><th>Ran.</th>
+                    <th>Cle.</th><th>Ran.</th><th>Cle.</th><th>Ran.</th><th>Cle.</th><th>Ran.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="group-row"><th colspan="13">Without robot-policy pretraining</th></tr>
+                  <tr><td>ACT</td><td>97</td><td>23</td><td>68</td><td>1</td><td>74</td><td>10</td><td>31</td><td>6</td><td>82</td><td>0</td><td>51.2</td><td>4.0</td></tr>
+                  <tr><td>DP</td><td>97</td><td>0</td><td>49</td><td>0</td><td>65</td><td>8</td><td>6</td><td>0</td><td>61</td><td>0</td><td>48.0</td><td>1.6</td></tr>
+                  <tr><td>DP3</td><td>99</td><td>3</td><td>85</td><td>53</td><td>98</td><td>19</td><td>69</td><td>3</td><td>83</td><td>6</td><td>73.9</td><td>8.3</td></tr>
+                  <tr class="ours"><td>JEPA-WAM</td><td>99</td><td>87</td><td>94</td><td>63</td><td>94</td><td>55</td><td>88</td><td>70</td><td>94</td><td>76</td><td><strong>79.9</strong></td><td><strong>36.9</strong></td></tr>
+                  <tr class="group-row"><th colspan="13">With robot-policy pretraining</th></tr>
+                  <tr><td>RDT-1B†</td><td>81</td><td>75</td><td>64</td><td>32</td><td>74</td><td>45</td><td>41</td><td>24</td><td>76</td><td>30</td><td>56.0</td><td>24.1</td></tr>
+                  <tr><td>π0†</td><td>90</td><td>56</td><td>83</td><td>24</td><td>97</td><td>60</td><td>62</td><td>29</td><td>91</td><td>41</td><td>62.6</td><td>24.0</td></tr>
+                  <tr><td>π0.5†</td><td>98</td><td>26</td><td>95</td><td>41</td><td>99</td><td>82</td><td>66</td><td>22</td><td>87</td><td>40</td><td>75.4</td><td>37.3</td></tr>
+                  <tr class="ours"><td>π0.5 + JEPA Obj.†</td><td>100</td><td>30</td><td>90</td><td>58</td><td>100</td><td>84</td><td>86</td><td>22</td><td>93</td><td>45</td><td><strong>84.6</strong></td><td><strong>37.5</strong></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="table-caption">
+              Selected tasks are shown; averages are computed over all 20 tasks. † denotes
+              large-scale robot-policy pretraining.
+            </p>
+          </article>
+
+          <article class="table-panel panel-ablation">
+            <div class="table-title-row">
+              <h3>Design Ablations</h3>
+              <span>Table 4 · LIBERO-Plus success rate (%)</span>
+            </div>
+            <div class="table-scroll">
+              <table class="data-table table-ablation">
+                <thead>
+                  <tr>
+                    <th>Method</th>
+                    <th>Camera</th>
+                    <th>Robot</th>
+                    <th>Language</th>
+                    <th>Light</th>
+                    <th>Background</th>
+                    <th>Noise</th>
+                    <th>Layout</th>
+                    <th>Avg.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td>a. DINO+SigLIP</td><td>60.0</td><td>61.9</td><td>74.1</td><td>88.7</td><td>88.0</td><td>64.2</td><td>75.7</td><td>73.2</td></tr>
+                  <tr><td>b. V-JEPA only</td><td>78.7</td><td>40.9</td><td>70.9</td><td>96.7</td><td>84.1</td><td>88.3</td><td>79.3</td><td>77.0</td></tr>
+                  <tr><td>c. Future only</td><td>75.1</td><td>47.1</td><td>69.6</td><td>96.0</td><td>93.4</td><td>81.5</td><td>78.4</td><td>77.3</td></tr>
+                  <tr><td>d. iREPA align.</td><td>68.9</td><td>45.5</td><td>69.2</td><td>90.9</td><td>89.1</td><td>81.5</td><td>77.7</td><td>74.7</td></tr>
+                  <tr><td>e. Lower-16 align.</td><td>77.5</td><td>41.6</td><td>75.0</td><td>95.5</td><td>86.3</td><td>82.2</td><td>77.2</td><td>76.5</td></tr>
+                  <tr><td>f. Full hidden</td><td>62.5</td><td>49.9</td><td>70.1</td><td>89.3</td><td>88.6</td><td>75.6</td><td>76.0</td><td>73.1</td></tr>
+                  <tr class="ours"><td>JEPA-WAM</td><td>79.2</td><td>59.2</td><td>68.2</td><td>93.3</td><td>94.6</td><td>83.6</td><td>76.1</td><td><strong>79.2</strong></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="table-caption">
+              Category-wise analysis of the visual representation, transition target, spatial
+              alignment, and action-conditioning design.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section real-world-section">
+        <div class="container full-figure-container">
+          <div class="section-heading">
+            <h2>Real-World Results</h2>
+          </div>
+          <figure>
+            <img
+              class="figure real-world-figure"
+              src="assets/real-world-results.webp?v=20260805"
+              alt="Real-world tasks and success rates under in-domain and out-of-domain settings"
+              width="3540"
+              height="1640"
+              loading="lazy"
+            />
+            <figcaption>
+              JEPA-WAM achieves 59.8% under in-domain conditions and 54.2% under OOD shifts.
+              Applying the same transition objective to a pretrained π0.5 policy reaches 90.3% ID
+              and 84.7% OOD.
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="container footer-content">
+        <p>JEPA-WAM · 2026</p>
+      </div>
+    </footer>
+  </body>
+</html>

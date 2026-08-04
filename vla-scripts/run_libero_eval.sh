@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+export CUDA_VISIBLE_DEVICES=2
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+PYTHON_BIN="${PYTHON_BIN:-python3}"
+
+CHECKPOINT="${1:-}"
+TASK_SUITE="${2:-libero_goal}"
+TRIALS="${3:-10}"
+
+LLM_PATH="${LLM_PATH:-/home/jwhe/linyihan/CKPT/Qwen2.5-0.5B}"
+LIBERO_PATH_VALUE="${LIBERO_PATH:-/home/jwhe/linyihan/LIBERO}"
+ROTATION_REPRESENTATION="${ROTATION_REPRESENTATION:-axis_angle}"
+
+if [[ -z "${CHECKPOINT}" ]]; then
+    echo "Usage: bash vla-scripts/run_libero_eval.sh /path/to/checkpoint.pt [task_suite] [trials]" >&2
+    echo "Example: bash vla-scripts/run_libero_eval.sh ./runs/xxx/checkpoints/latest-checkpoint.pt libero_goal 10" >&2
+    exit 1
+fi
+
+if [[ ! -e "${CHECKPOINT}" ]]; then
+    echo "Checkpoint not found: ${CHECKPOINT}" >&2
+    exit 1
+fi
+
+if [[ ! -e "${LLM_PATH}" ]]; then
+    echo "LLM path not found: ${LLM_PATH}" >&2
+    exit 1
+fi
+
+if [[ ! -d "${LIBERO_PATH_VALUE}" ]]; then
+    echo "LIBERO path not found: ${LIBERO_PATH_VALUE}" >&2
+    exit 1
+fi
+
+case "${TASK_SUITE}" in
+    libero_spatial|libero_object|libero_goal|libero_10|libero_90)
+        ;;
+    *)
+        echo "Invalid task suite: ${TASK_SUITE}" >&2
+        exit 1
+        ;;
+esac
+
+export LIBERO_PATH="${LIBERO_PATH_VALUE}"
+export PYTHONPATH="${REPO_ROOT}:${PYTHONPATH:-}"
+export TOKENIZERS_PARALLELISM=false
+
+cd "${REPO_ROOT}"
+
+"${PYTHON_BIN}" experiments/robot/libero/run_libero_eval.py \
+    --model_family openvla \
+    --pretrained_checkpoint "${CHECKPOINT}" \
+    --llm_checkpoint_path "${LLM_PATH}" \
+    --task_suite_name "${TASK_SUITE}" \
+    --num_trials_per_task "${TRIALS}" \
+    --num_images_in_input 1 \
+    --use_proprio True \
+    --rotation_representation "${ROTATION_REPRESENTATION}" \
+    --use_l1_regression False \
+    --use_minivlm True \
+    --center_crop False \
+    --save_version vla-adapter

@@ -1,0 +1,5 @@
+benchmark_root: /root/linyihan/LIBERO-PRO/libero/libero
+bddl_files: /root/linyihan/LIBERO-PRO/libero/libero/bddl_files
+init_states: /root/linyihan/LIBERO-PRO/libero/libero/init_files
+datasets: /root/linyihan/LIBERO-PRO/libero/datasets
+assets: /root/linyihan/LIBERO-PRO/libero/libero/assets
