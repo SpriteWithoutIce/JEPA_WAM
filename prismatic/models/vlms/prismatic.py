@@ -142,14 +142,6 @@ class PrismaticVLM(VLM):
         self.lambda_aux = kwargs.get("lambda_aux", 0.2)
         self.use_visual_token_cosine_head = kwargs.get("use_visual_token_cosine_head", False)
         self.lambda_visual_token_cosine = kwargs.get("lambda_visual_token_cosine", 0.5)
-        self.visual_token_cosine_use_projector_target = kwargs.get("visual_token_cosine_use_projector_target", True)
-        self.visual_token_cosine_layer_idx = int(kwargs.get("visual_token_cosine_layer_idx", -1))
-        self.visual_token_cosine_projection_type = str(kwargs.get("visual_token_cosine_projection_type", "mlp")).lower()
-        if self.visual_token_cosine_projection_type not in {"mlp", "conv"}:
-            raise ValueError(
-                "Unsupported visual_token_cosine_projection_type "
-                f"`{self.visual_token_cosine_projection_type}`. Use `mlp` or `conv`."
-            )
         if self.use_action_queries and self.action_placeholder_tokens > 0:
             self.action_queries = torch.nn.Embedding(self.action_placeholder_tokens, llm_backbone.embed_dim)
             self.action_queries.weight.data.zero_()
@@ -230,15 +222,9 @@ class PrismaticVLM(VLM):
             self.aux_head = None
 
         if self.use_visual_token_cosine_head:
-            visual_token_target_dim = (
-                llm_backbone.embed_dim
-                if self.visual_token_cosine_use_projector_target
-                else kwargs.get("d_jepa", vision_backbone.embed_dim)
-            )
             self.visual_token_cosine_head = VisualTokenCosineHead(
                 d_llm=llm_backbone.embed_dim,
-                d_target=visual_token_target_dim,
-                projection_type=self.visual_token_cosine_projection_type,
+                d_target=kwargs.get("d_jepa", vision_backbone.embed_dim),
             )
         else:
             self.visual_token_cosine_head = None
@@ -1257,19 +1243,10 @@ class PrismaticVLM(VLM):
             ):
                 if llm_output.hidden_states is None:
                     raise RuntimeError("visual_token_cosine_head requires LLM hidden states.")
-                cosine_layer_idx = self.visual_token_cosine_layer_idx
-                num_hidden_layers = len(llm_output.hidden_states)
-                if not -num_hidden_layers <= cosine_layer_idx < num_hidden_layers:
-                    raise ValueError(
-                        f"visual_token_cosine_layer_idx={cosine_layer_idx} is out of range for "
-                        f"{num_hidden_layers} hidden-state tensors."
-                    )
-                cosine_llm_hidden = llm_output.hidden_states[cosine_layer_idx]
                 if not getattr(self, "_printed_visual_token_cosine_layer_debug", False):
                     overwatch.info(
-                        "Visual-token cosine supervision using LLM hidden_states[%s] with shape %s",
-                        cosine_layer_idx,
-                        tuple(cosine_llm_hidden.shape),
+                        "Visual-token cosine supervision using final Qwen hidden state with shape %s",
+                        tuple(llm_hidden.shape),
                     )
                     self._printed_visual_token_cosine_layer_debug = True
                 if pair_vjepa_target.shape[2] != 1:
@@ -1277,21 +1254,11 @@ class PrismaticVLM(VLM):
                         "visual_token_cosine_head expects a JEPA target with temporal token dim 1, "
                         f"got {tuple(pair_vjepa_target.shape)}"
                     )
-                cosine_vision_memory = cosine_llm_hidden[:, 1 : 1 + vision_token_count, :]
+                cosine_vision_memory = vision_memory
                 cosine_pair_target_grid = pair_vjepa_target.squeeze(2)
                 target_views = cosine_pair_target_grid.shape[1]
                 target_height = cosine_pair_target_grid.shape[2]
                 target_width = cosine_pair_target_grid.shape[3]
-                if self.visual_token_cosine_projection_type == "conv":
-                    target_spatial = cosine_pair_target_grid.reshape(
-                        cosine_pair_target_grid.shape[0],
-                        target_views,
-                        target_height * target_width,
-                        cosine_pair_target_grid.shape[-1],
-                    )
-                    target_spatial = target_spatial - target_spatial.mean(dim=2, keepdim=True)
-                    target_spatial = target_spatial / target_spatial.std(dim=2, keepdim=True, unbiased=False).clamp_min(1e-6)
-                    cosine_pair_target_grid = target_spatial.reshape_as(cosine_pair_target_grid)
                 cosine_pair_target = cosine_pair_target_grid.reshape(
                     cosine_pair_target_grid.shape[0],
                     target_views * target_height * target_width,
@@ -1299,18 +1266,14 @@ class PrismaticVLM(VLM):
                 )
                 if not getattr(self, "_printed_visual_token_cosine_shape_debug", False):
                     overwatch.info(
-                        "Visual-token cosine check: projection=%s input_views=%d target_views=%d pred_tokens=%d target_tokens=%d",
-                        self.visual_token_cosine_projection_type,
+                        "Visual-token cosine check: projection=mlp input_views=%d target_views=%d pred_tokens=%d target_tokens=%d",
                         V,
                         target_views,
                         cosine_vision_memory.shape[1],
                         cosine_pair_target.shape[1],
                     )
                     self._printed_visual_token_cosine_shape_debug = True
-                if self.visual_token_cosine_use_projector_target:
-                    target_visual_tokens = self.projector(cosine_pair_target).detach()
-                else:
-                    target_visual_tokens = cosine_pair_target.detach()
+                target_visual_tokens = cosine_pair_target.detach()
 
                 if cosine_vision_memory.shape[1] != target_visual_tokens.shape[1]:
                     raise ValueError(
@@ -1320,8 +1283,6 @@ class PrismaticVLM(VLM):
                 loss_visual_token_cosine, visual_pred = self.visual_token_cosine_head(
                     cosine_vision_memory,
                     target_visual_tokens,
-                    num_views=target_views,
-                    spatial_hw=(target_height, target_width),
                 )
                 total_loss = total_loss + self.lambda_visual_token_cosine * loss_visual_token_cosine
                 if memory_stats is not None and (snap := _maybe_cuda_mem_snapshot("after_visual_token_cosine_head")) is not None:

@@ -485,9 +485,6 @@ def load_vla(
         "lambda_aux",
         "use_visual_token_cosine_head",
         "lambda_visual_token_cosine",
-        "visual_token_cosine_use_projector_target",
-        "visual_token_cosine_layer_idx",
-        "visual_token_cosine_projection_type",
     ):
         if key in vla_cfg:
             vla_head_kwargs[key] = vla_cfg[key]

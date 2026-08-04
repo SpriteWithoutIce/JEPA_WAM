@@ -30,7 +30,6 @@ ACTION_LEARNING_RATE="${ACTION_LEARNING_RATE:-2e-4}"
 ACTION_MIN_LEARNING_RATE="${ACTION_MIN_LEARNING_RATE:-1e-5}"
 
 VISUAL_TOKEN_PAIR_OFFSET="${VISUAL_TOKEN_PAIR_OFFSET:-31}"
-VISUAL_TOKEN_COSINE_LAYER_IDX="${VISUAL_TOKEN_COSINE_LAYER_IDX:--1}"
 LAMBDA_VISUAL_TOKEN_COSINE="${LAMBDA_VISUAL_TOKEN_COSINE:-0.5}"
 USE_WANDB="${USE_WANDB:-True}"
 
@@ -71,9 +70,6 @@ CMD=(
   --vla.flow_gr00t_use_full_llm_hidden False \
   --vla.use_aux_head False \
   --vla.use_visual_token_cosine_head True \
-  --vla.visual_token_cosine_use_projector_target False \
-  --vla.visual_token_cosine_layer_idx "${VISUAL_TOKEN_COSINE_LAYER_IDX}" \
-  --vla.visual_token_cosine_projection_type mlp \
   --vla.lambda_visual_token_cosine "${LAMBDA_VISUAL_TOKEN_COSINE}" \
   --vla.visual_token_pair_offset "${VISUAL_TOKEN_PAIR_OFFSET}" \
   --vla.future_obs_window_size 0 \
@@ -103,7 +99,7 @@ CMD=(
   echo "Robot platform: ${VLA_ROBOT_PLATFORM} (action chunk: 25)"
   echo "Trainable: full LLM, projector, action queries, and action head; vision backbone frozen"
   echo "Learning rates: VLM/projector=${VLM_LEARNING_RATE}, action/query=${ACTION_LEARNING_RATE}"
-  echo "Visual cosine: projection=mlp, layer=${VISUAL_TOKEN_COSINE_LAYER_IDX}, offset=${VISUAL_TOKEN_PAIR_OFFSET}"
+  echo "Visual cosine: final Qwen layer -> MLP -> raw V-JEPA target, offset=${VISUAL_TOKEN_PAIR_OFFSET}"
   echo "Visual cosine weight: ${LAMBDA_VISUAL_TOKEN_COSINE}"
   printf 'Command:'
   printf ' %q' "${CMD[@]}"

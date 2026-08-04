@@ -479,63 +479,29 @@ class AuxHead(nn.Module):
 
 
 class VisualTokenCosineHead(nn.Module):
-    """Computes cosine alignment between LLM visual tokens and target visual embeddings."""
+    """Project final-layer Qwen visual tokens into V-JEPA space and align them with cosine loss."""
 
-    def __init__(self, d_llm: int, d_target: int, use_vlm_norm: bool = False, projection_type: str = "mlp"):
+    def __init__(self, d_llm: int, d_target: int, use_vlm_norm: bool = False):
         super().__init__()
-        self.projection_type = str(projection_type).lower()
-        if self.projection_type not in {"mlp", "conv"}:
-            raise ValueError(f"Unsupported visual-token cosine projection type `{projection_type}`. Use `mlp` or `conv`.")
-
+        hidden_dim = 2 * d_target
+        self.fc1 = nn.Linear(d_llm, hidden_dim, bias=True)
+        self.fc2 = nn.Linear(hidden_dim, d_target, bias=True)
+        self.act_fn1 = nn.GELU()
         self.vlm_norm = nn.LayerNorm(d_llm) if use_vlm_norm else None
-        if self.projection_type == "mlp":
-            hidden_dim = 2 * d_target
-            self.fc1 = nn.Linear(d_llm, hidden_dim, bias=True)
-            self.fc2 = nn.Linear(hidden_dim, d_target, bias=True)
-            self.act_fn1 = nn.GELU()
-            self.conv_proj = None
-        else:
-            self.fc1 = None
-            self.fc2 = None
-            self.act_fn1 = None
-            self.conv_proj = nn.Conv2d(d_llm, d_target, kernel_size=3, padding=1, bias=True)
         self.initialize_weights()
 
     def initialize_weights(self):
         def _basic_init(module):
-            if isinstance(module, (nn.Linear, nn.Conv2d)):
+            if isinstance(module, nn.Linear):
                 torch.nn.init.xavier_uniform_(module.weight)
                 if module.bias is not None:
                     nn.init.constant_(module.bias, 0)
 
         self.apply(_basic_init)
 
-    def align_dimension(
-        self,
-        llm_embedding: torch.Tensor,
-        num_views: Optional[int] = None,
-        spatial_hw: Optional[tuple[int, int]] = None,
-    ) -> torch.Tensor:
+    def align_dimension(self, llm_embedding: torch.Tensor) -> torch.Tensor:
         if self.vlm_norm is not None:
             llm_embedding = self.vlm_norm(llm_embedding)
-        if self.projection_type == "conv":
-            if num_views is None or spatial_hw is None:
-                raise ValueError("Conv visual-token cosine projection requires num_views and spatial_hw.")
-            height, width = spatial_hw
-            batch_size, seq_len, hidden_dim = llm_embedding.shape
-            expected_tokens = int(num_views) * int(height) * int(width)
-            if seq_len != expected_tokens:
-                raise ValueError(
-                    "Conv visual-token cosine projection token mismatch: "
-                    f"seq_len={seq_len}, expected={expected_tokens} (V={num_views}, H={height}, W={width})."
-                )
-            x = llm_embedding.reshape(batch_size, num_views, height, width, hidden_dim)
-            x = x.permute(0, 1, 4, 2, 3).reshape(batch_size * num_views, hidden_dim, height, width)
-            x = self.conv_proj(x)
-            out_dim = x.shape[1]
-            x = x.reshape(batch_size, num_views, out_dim, height, width).permute(0, 1, 3, 4, 2)
-            return x.reshape(batch_size, seq_len, out_dim)
-
         projected_features = self.fc1(llm_embedding)
         projected_features = self.act_fn1(projected_features)
         projected_features = self.fc2(projected_features)
@@ -550,15 +516,9 @@ class VisualTokenCosineHead(nn.Module):
         jepa_hidden = F.normalize(jepa_hidden, dim=-1)
         return (1 - mean_flat((vision_hidden * jepa_hidden).sum(dim=-1))).mean()
 
-    def forward(
-        self,
-        llm_emb: torch.Tensor,
-        target_emb: torch.Tensor,
-        num_views: Optional[int] = None,
-        spatial_hw: Optional[tuple[int, int]] = None,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        projected = self.align_dimension(llm_emb, num_views=num_views, spatial_hw=spatial_hw)
-        align_loss = self.compute_align_loss_cosine(projected, target_emb)
+    def forward(self, llm_emb: torch.Tensor, target_emb: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        projected = self.align_dimension(llm_emb)
+        align_loss = self.compute_align_loss_cosine(projected, target_emb.detach())
         return align_loss, projected
 
 # =============================================================================

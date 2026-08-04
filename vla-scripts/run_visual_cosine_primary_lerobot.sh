@@ -19,24 +19,8 @@ BASE_VLM_RUN="${BASE_VLM_RUN:-/home/linyihan/datasets/prism-qwen25-vjepa21-vitl-
 RUNS_DIR="./runs"
 LAST_CKPT="/root/linyihan/JEPA-WAM/runs/jepavla-qwen25-vjepa-224px+0_5b+mx-libero-90+n0+b32+x7--visual-cosine-projector-allviews--20260525_225202/checkpoints/step-030000-epoch-14-loss=0.0610.pt"
 VISUAL_TOKEN_PAIR_OFFSET="${VISUAL_TOKEN_PAIR_OFFSET:-31}"
-VISUAL_TOKEN_COSINE_LAYER_IDX="${VISUAL_TOKEN_COSINE_LAYER_IDX:-16}"
-VISUAL_TOKEN_COSINE_PROJECTION_TYPE="${VISUAL_TOKEN_COSINE_PROJECTION_TYPE:-mlp}"
 LAMBDA_VISUAL_TOKEN_COSINE="${LAMBDA_VISUAL_TOKEN_COSINE:-0.5}"
-if [[ -z "${RUN_ID_NOTE:-}" ]]; then
-    if [[ "${VISUAL_TOKEN_COSINE_PROJECTION_TYPE}" == "conv" ]]; then
-        if [[ "${VISUAL_TOKEN_COSINE_LAYER_IDX}" == "-1" ]]; then
-            RUN_ID_NOTE="visual-cosine-qwen25-primary-irepa"
-        else
-            RUN_ID_NOTE="visual-cosine-qwen25-primary-irepa-layer${VISUAL_TOKEN_COSINE_LAYER_IDX}"
-        fi
-    else
-        if [[ "${VISUAL_TOKEN_COSINE_LAYER_IDX}" == "-1" ]]; then
-            RUN_ID_NOTE="visual-cosine-qwen25-primary"
-        else
-            RUN_ID_NOTE="visual-cosine-qwen25-primary-layer${VISUAL_TOKEN_COSINE_LAYER_IDX}"
-        fi
-    fi
-fi
+RUN_ID_NOTE="${RUN_ID_NOTE:-visual-cosine-qwen25-primary-lerobot}"
 ROTATION_REPRESENTATION="${ROTATION_REPRESENTATION:-axis_angle}"
 # ROTATION_REPRESENTATION="${ROTATION_REPRESENTATION:-rot6d}"
 
@@ -81,9 +65,6 @@ CMD=(
     --vla.flow_gr00t_use_full_llm_hidden False
     --vla.use_aux_head False
     --vla.use_visual_token_cosine_head True
-    --vla.visual_token_cosine_use_projector_target False
-    --vla.visual_token_cosine_layer_idx "${VISUAL_TOKEN_COSINE_LAYER_IDX}"
-    --vla.visual_token_cosine_projection_type "${VISUAL_TOKEN_COSINE_PROJECTION_TYPE}"
     --vla.lambda_visual_token_cosine "${LAMBDA_VISUAL_TOKEN_COSINE}"
     --vla.visual_token_pair_offset "${VISUAL_TOKEN_PAIR_OFFSET}"
     --vla.future_obs_window_size 0

@@ -69,7 +69,6 @@ class VLAConfig(ChoiceRegistry):
     shared_dataset_statistics: bool = False          # Normalize every dataset in a mixture with one shared statistic
     rank_shard_dataset_sources: bool = False        # Partition RLDS dataset sources across distributed ranks
     visual_token_pair_offset: int = 0                # Optional paired-frame offset (e.g. 31) with tail padding
-    visual_token_cosine_target_future_only: bool = False  # Encode only t+offset instead of the [t, t+offset] pair
     stitch_primary_and_wrist_images: bool = False    # If True, stitch primary+wrist views horizontally into one image
     rotation_representation: str = "axis_angle"      # "axis_angle" or "rot6d"
     dataset_format: str = "rlds"                     # "rlds" or "lerobot"
@@ -132,9 +131,6 @@ class VLAConfig(ChoiceRegistry):
     lambda_aux: float = 0.5
     use_visual_token_cosine_head: bool = False       # Supervise LLM visual tokens with paired-frame JEPA targets
     lambda_visual_token_cosine: float = 0.5
-    visual_token_cosine_use_projector_target: bool = True
-    visual_token_cosine_layer_idx: int = -1          # LLM hidden_states index for cosine supervision (-1 = final layer)
-    visual_token_cosine_projection_type: str = "mlp" # "mlp" keeps old projection; "conv" uses iREPA-style conv + spatial norm
 
     # Optional optimizer overrides for module groups
     vlm_learning_rate: Optional[float] = None
@@ -282,8 +278,8 @@ class Exp_JEPAVLA_Qwen25_VJEPA_0_5B_LIBERO_90(Exp_SigLIP_224px_Bridge):
     vla_id: str = "jepavla-qwen25-vjepa-224px+0_5b+mx-libero-90"
     base_vlm: Union[str, Path] = "prism-qwen25-vjepa-224px+0_5b"
 
-    image_sequence_len: int = 1
-    use_wrist_image: bool = False
+    image_sequence_len: int = 2
+    use_wrist_image: bool = True
     freeze_vision_backbone: bool = True
     freeze_llm_backbone: bool = False
     unfreeze_last_llm_layer: bool = False
@@ -303,8 +299,18 @@ class Exp_JEPAVLA_Qwen25_VJEPA_0_5B_LIBERO_90(Exp_SigLIP_224px_Bridge):
     warmup_ratio: float = 0.0
 
     # JEPA-specific overrides
+    use_lora: bool = True
+    lora_rank: int = 32
+    lora_alpha: int = 64
+    lora_dropout: float = 0.1
+    action_head_type: str = "flow_gr00t"
+    flow_gr00t_use_full_llm_hidden: bool = False
     use_aux_head: bool = False
+    use_visual_token_cosine_head: bool = True
+    lambda_visual_token_cosine: float = 0.5
+    visual_token_pair_offset: int = 31
     future_obs_window_size: int = 0
+    rotation_representation: str = "axis_angle"
     vjepa_checkpoint_path: Optional[str] = None
 
 

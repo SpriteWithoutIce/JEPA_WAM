@@ -58,7 +58,6 @@ CMD=(
     --vla.flow_gr00t_use_full_llm_hidden False
     --vla.use_aux_head False
     --vla.use_visual_token_cosine_head False
-    --vla.visual_token_cosine_use_projector_target False
     --vla.lambda_visual_token_cosine "${LAMBDA_VISUAL_TOKEN_COSINE}"
     --vla.visual_token_pair_offset "${VISUAL_TOKEN_PAIR_OFFSET}"
     --vla.future_obs_window_size 0

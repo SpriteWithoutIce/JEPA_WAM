@@ -126,7 +126,6 @@ class VLABatchTransform:
     future_obs_downsample_stride: int = 1
     context: bool = False
     visual_token_pair_offset: int = 0
-    visual_token_cosine_target_future_only: bool = False
     stitch_primary_and_wrist_images: bool = False
     robotwin_aloha_mosaic: bool = False
     fast_tokenizer: Optional[Any] = None
@@ -293,14 +292,11 @@ class VLABatchTransform:
                     self.image_transform, pair_target_imgs
                 )
             else:
-                if self.visual_token_cosine_target_future_only:
-                    pair_primary_imgs = pair_primary_imgs[-1:]
                 return_dict["pair_pixel_values"] = _future_target_pixel_values(self.image_transform, pair_primary_imgs)
             if not getattr(self, "_printed_visual_token_target_debug", False):
-                target_mode = "future-only" if self.visual_token_cosine_target_future_only else "current+future"
                 print(
                     "[VLABatchTransform] visual-token cosine target: "
-                    f"mode={target_mode} offset={self.visual_token_pair_offset}"
+                    f"mode=current+future offset={self.visual_token_pair_offset}"
                 )
                 self._printed_visual_token_target_debug = True
 
@@ -329,8 +325,6 @@ class VLABatchTransform:
                 for k in rlds_batch["observation"].keys():
                     if k.startswith("pair_image_") and "wrist" in k:
                         pair_imgs = [_frame_to_pil(frame) for frame in rlds_batch["observation"][k]]
-                        if self.visual_token_cosine_target_future_only:
-                            pair_imgs = pair_imgs[-1:]
                         all_pair_wrist_pixels.append(_future_target_pixel_values(self.image_transform, pair_imgs))
                 if all_pair_wrist_pixels:
                     return_dict["pair_pixel_values_wrist"] = _stack_pixel_values(all_pair_wrist_pixels)
