@@ -23,28 +23,10 @@ IMAGENET_STD = (0.229, 0.224, 0.225)
 _CHECKPOINT_KEYS = ("target_encoder", "ema_encoder", "encoder")
 
 VJEPA_VISION_BACKBONES: Dict[str, Dict[str, object]] = {
-    "vjepa2_1-vit-b-384px": {
-        "model_size": "vjepa2_1_vit_base",
-        "factory": "vit_base",
-        "embed_dim": 768,
-        "default_image_size": 384,
-    },
     "vjepa2_1-vit-l-384px": {
         "model_size": "vjepa2_1_vit_large",
         "factory": "vit_large",
         "embed_dim": 1024,
-        "default_image_size": 384,
-    },
-    "vjepa2_1-vit-g-384px": {
-        "model_size": "vjepa2_1_vit_giant",
-        "factory": "vit_giant_xformers",
-        "embed_dim": 1408,
-        "default_image_size": 384,
-    },
-    "vjepa2_1-vit-G-384px": {
-        "model_size": "vjepa2_1_vit_gigantic",
-        "factory": "vit_gigantic_xformers",
-        "embed_dim": 1664,
         "default_image_size": 384,
     },
 }
@@ -173,20 +155,20 @@ class VJEPA21ViTBackbone(VisionBackbone):
             )
         return out
 
-    def encode_future(self, future_pixel_values: torch.Tensor) -> torch.Tensor:
-        if future_pixel_values.ndim == 5:
-            batch_size, num_frames, channels, height, width = future_pixel_values.shape
+    def encode_pair(self, pair_pixel_values: torch.Tensor) -> torch.Tensor:
+        if pair_pixel_values.ndim == 5:
+            batch_size, num_frames, channels, height, width = pair_pixel_values.shape
             num_views = 1
-            x = future_pixel_values.permute(0, 2, 1, 3, 4)
-        elif future_pixel_values.ndim == 6:
-            batch_size, num_views, num_frames, channels, height, width = future_pixel_values.shape
-            x = future_pixel_values.reshape(batch_size * num_views, num_frames, channels, height, width).permute(
+            x = pair_pixel_values.permute(0, 2, 1, 3, 4)
+        elif pair_pixel_values.ndim == 6:
+            batch_size, num_views, num_frames, channels, height, width = pair_pixel_values.shape
+            x = pair_pixel_values.reshape(batch_size * num_views, num_frames, channels, height, width).permute(
                 0, 2, 1, 3, 4
             )
         else:
             raise ValueError(
-                "Expected future image tensor of shape [B, T, 3, H, W] or [B, V, T, 3, H, W], "
-                f"got {tuple(future_pixel_values.shape)}"
+                "Expected paired images with shape [B, T, 3, H, W] or [B, V, T, 3, H, W], "
+                f"got {tuple(pair_pixel_values.shape)}"
             )
 
         x = x.to(device=next(self.featurizer.parameters()).device, dtype=next(self.featurizer.parameters()).dtype)
@@ -199,7 +181,7 @@ class VJEPA21ViTBackbone(VisionBackbone):
         expected_tokens = temporal_tokens * spatial_side * spatial_side
         if out.shape[1] != expected_tokens:
             raise ValueError(
-                f"Unexpected V-JEPA future token count: got {out.shape[1]}, expected {expected_tokens} "
+                f"Unexpected V-JEPA pair token count: got {out.shape[1]}, expected {expected_tokens} "
                 f"(T={num_frames}, tubelet={self.tubelet_size}, side={spatial_side})"
             )
 

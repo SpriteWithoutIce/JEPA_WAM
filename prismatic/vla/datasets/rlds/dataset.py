@@ -7,7 +7,6 @@ Core interface script for configuring and initializing RLDS datasets.
 import copy
 import inspect
 import json
-import os
 from functools import partial
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
@@ -18,13 +17,11 @@ import tensorflow_datasets as tfds
 
 from prismatic.overwatch import initialize_overwatch
 from prismatic.util.rotation_utils import standardize_fn_hash_key
-from prismatic.vla.constants import ACTION_DIM, ACTION_PROPRIO_NORMALIZATION_TYPE, ACTION_TOKEN_BEGIN_IDX, IGNORE_INDEX, NUM_ACTIONS_CHUNK, PROPRIO_DIM, STOP_INDEX
 from prismatic.vla.datasets.rlds import obs_transforms, traj_transforms
-from prismatic.vla.datasets.rlds.utils import goal_relabeling, task_augmentation
+from prismatic.vla.datasets.rlds.utils import goal_relabeling
 from prismatic.vla.datasets.rlds.utils.data_utils import (
     allocate_threads,
     get_dataset_statistics,
-    merge_dataset_statistics,
     normalize_action_and_proprio,
     pprint_data_mixture,
     tree_map,
@@ -43,14 +40,12 @@ def make_dataset_from_rlds(
     name: str,
     data_dir: str,
     *,
-    train: bool,
     standardize_fn: Optional[Callable[[dict], dict]] = None,
     shuffle: bool = True,
     image_obs_keys: Dict[str, Optional[str]] = {},
     depth_obs_keys: Dict[str, Optional[str]] = {},
     state_obs_keys: List[Optional[str]] = (),
     language_key: Optional[str] = None,
-    action_proprio_normalization_type: ACTION_PROPRIO_NORMALIZATION_TYPE,
     dataset_statistics: Optional[Union[dict, str]] = None,
     absolute_action_mask: Optional[List[bool]] = None,
     action_normalization_mask: Optional[List[bool]] = None,
@@ -83,7 +78,6 @@ def make_dataset_from_rlds(
     Args:
         name (str): The name of the RLDS dataset (usually "name" or "name:version").
         data_dir (str): The path to the data directory.
-        train (bool): Whether to use the training or validation split.
         shuffle (bool, optional): Whether to shuffle the file read order (does NOT fully shuffle the dataset, since one
             file usually contains many trajectories)!
         standardize_fn (Callable[[dict], dict], optional): A function that, if provided, will be the first
@@ -97,13 +91,7 @@ def make_dataset_from_rlds(
             "observation" dict, concatenated, and mapped to "proprio". Inserts 1 element of padding for each None entry.
         language_key (str, optional): If provided, the "task" dict will contain the key "language_instruction",
             extracted from `traj[language_key]`.
-        action_proprio_normalization_type (str, optional): The type of normalization to perform on the action,
-            proprio, or both. Can be "normal" (mean 0, std 1) or "bounds" (normalized to [-1, 1]).
-        dataset_statistics: (dict|str, optional): dict (or path to JSON file) that contains dataset statistics
-            for normalization. If `action_proprio_normalization_type` is "normal", this should contain "mean" and
-            "std" keys. If `action_proprio_normalization_type` is "bounds", this should contain "min" and "max"
-            keys. May also provide "num_transitions" and "num_trajectories" keys for downstream usage (e.g., for
-            `make_interleaved_dataset`). If not provided, the statistics will be computed on the fly.
+        dataset_statistics: (dict|str, optional): q01/q99 statistics for action and proprio normalization.
         absolute_action_mask (Sequence[bool], optional): By default, all action dimensions are assumed to be
             relative. This is important for when `future_action_window_size > 0`: actions that are taken
             from beyond the end of the trajectory (or beyond the goal timestep when goal relabeling is used)
@@ -241,16 +229,13 @@ def make_dataset_from_rlds(
         dataset_statistics["action"]["mask"] = np.array(action_normalization_mask)
 
     # construct the dataset
-    split = "train" if train else "val"
-
-    dataset = dl.DLataset.from_rlds(builder, split=split, shuffle=shuffle, num_parallel_reads=num_parallel_reads)
+    dataset = dl.DLataset.from_rlds(builder, split="train", shuffle=shuffle, num_parallel_reads=num_parallel_reads)
 
     dataset = dataset.traj_map(restructure, num_parallel_calls)
     dataset = dataset.traj_map(
         partial(
             normalize_action_and_proprio,
             metadata=dataset_statistics,
-            normalization_type=action_proprio_normalization_type,
         ),
         num_parallel_calls,
     )
@@ -261,20 +246,12 @@ def make_dataset_from_rlds(
 def apply_trajectory_transforms(
     dataset: dl.DLataset,
     *,
-    train: bool,
     goal_relabeling_strategy: Optional[str] = None,
     goal_relabeling_kwargs: dict = {},
     window_size: int = 1,
     future_action_window_size: int = 0,
-    future_obs_window_size: int = 0,
     pair_target_offset: int = 0,
-    context: bool = False,
-    subsample_length: Optional[int] = None,
     skip_unlabeled: bool = False,
-    max_action: Optional[float] = None,
-    max_proprio: Optional[float] = None,
-    task_augment_strategy: Optional[str] = None,
-    task_augment_kwargs: dict = {},
     num_parallel_calls: int = tf.data.AUTOTUNE,
 ) -> dl.DLataset:
     """
@@ -288,24 +265,13 @@ def apply_trajectory_transforms(
 
     Args:
         dataset (dl.DLataset): The dataset to transform.
-        train (bool): Whether the dataset is for training (affects subsampling).
         goal_relabeling_strategy (str, optional): The goal relabeling strategy to use, or None for
             no goal relabeling. See `goal_relabeling.py`.
         goal_relabeling_kwargs (dict, optional): Additional keyword arguments to pass to the goal relabeling function.
         window_size (int, optional): The length of the snippets that trajectories are chunked into.
         future_action_window_size (int, optional): The number of future actions beyond window_size to include
             in the chunked actions.
-        subsample_length (int, optional): If provided, trajectories longer than this will be subsampled to
-            this length (after goal relabeling and chunking).
         skip_unlabeled (bool, optional): Whether to skip trajectories with no language labels.
-        max_action: (float, optional): If provided, trajectories in which *any* action dimension
-            of *any* transition has an absolute value larger than this will be skipped.
-        max_proprio: (float, optional): If provided, trajectories in which *any* proprio dimension
-            of *any* transition has an absolute value larger than this will be skipped.
-        task_augment_strategy (str, optional): The task augmentation strategy to use, or None for no task
-            augmentation. See `task_augmentation.py`.
-        task_augment_kwargs (dict, optional): Additional keyword arguments to pass to the task augmentation
-            function.
         num_parallel_calls (int, optional): number of parallel calls for map operations. Default to AUTOTUNE.
     """
     if skip_unlabeled:
@@ -313,12 +279,6 @@ def apply_trajectory_transforms(
             raise ValueError("skip_unlabeled=True but dataset does not have language labels.")
 
         dataset = dataset.filter(lambda x: tf.math.reduce_any(x["task"]["language_instruction"] != ""))
-
-    if max_action is not None:
-        dataset = dataset.filter(lambda x: tf.math.reduce_all(tf.math.abs(x["action"]) <= max_action))
-
-    if max_proprio is not None and "proprio" in dataset.element_spec["observation"]:
-        dataset = dataset.filter(lambda x: tf.math.reduce_all(tf.math.abs(x["observation"]["proprio"]) <= max_proprio))
 
     # marks which entires of the observation and task dicts are padding
     dataset = dataset.traj_map(traj_transforms.add_pad_mask_dict, num_parallel_calls)
@@ -330,17 +290,6 @@ def apply_trajectory_transforms(
             num_parallel_calls,
         )
 
-    # must run task augmentation before chunking, in case it changes goal timesteps
-    if train and task_augment_strategy is not None:
-        # perform task augmentation (e.g., dropping keys)
-        dataset = dataset.traj_map(
-            partial(
-                getattr(task_augmentation, task_augment_strategy),
-                **task_augment_kwargs,
-            ),
-            num_parallel_calls,
-        )
-
     # chunks observations and actions, giving them a new axis at index 1 of size `window_size` and
     # `window_size + future_action_window_size`, respectively
     dataset = dataset.traj_map(
@@ -348,42 +297,17 @@ def apply_trajectory_transforms(
             traj_transforms.chunk_act_obs,
             window_size=window_size,
             future_action_window_size=future_action_window_size,
-            future_obs_window_size=future_obs_window_size,
             pair_target_offset=pair_target_offset,
-            context=context,
         ),
         num_parallel_calls,
     )
 
-    if train and subsample_length is not None:
-        dataset = dataset.traj_map(
-            partial(traj_transforms.subsample, subsample_length=subsample_length),
-            num_parallel_calls,
-        )
-
-    return dataset
-
-
-def apply_per_dataset_frame_transforms(
-    dataset: dl.DLataset,
-    chunk_filter_fn: Optional[Callable] = None,
-):
-    """
-    Optionally applied *per-dataset* transforms that happen at a frame level.
-
-    Args:
-        chunk_filter_fn (callable, optional): Filter function for chunks.
-    """
-    if chunk_filter_fn:
-        dataset = dataset.filter(chunk_filter_fn)
     return dataset
 
 
 def apply_frame_transforms(
     dataset: dl.DLataset,
     *,
-    train: bool,
-    image_augment_kwargs: Union[Dict, Dict[str, Dict]] = {},
     resize_size: Union[Tuple[int, int], Dict[str, Tuple[int, int]]] = {},
     depth_resize_size: Union[Tuple[int, int], Dict[str, Tuple[int, int]]] = {},
     num_parallel_calls: int = tf.data.AUTOTUNE,
@@ -393,13 +317,7 @@ def apply_frame_transforms(
     decoding or resizing images).
 
     Args:
-        train (bool): Whether the dataset is for training (affects image augmentation).
         dataset (dl.DLataset): The dataset to transform.
-        image_augment_kwargs (dict|Mapping[str, dict]): Keyword arguments to pass to the image augmentation
-            function. See `dlimp.transforms.augment_image` for documentation of these kwargs. If a dict of
-            dicts is provided, then key "k" will be used for "image_{k}" (names determined by `image_obs_keys`
-            in `make_dataset_from_rlds`). Augmentation will be skipped for missing keys (so pass an empty dict
-            to skip augmentation for all images).
         resize_size (Tuple[int, int]|Mapping[str, Tuple[int, int]]): If provided, images will be resized to
             this size. If a dict of tuples is provided, then key "k" will be used for "image_{k}" (names
             determined by `image_obs_keys` in `make_dataset_from_rlds`). Resizing will be skipped for missing
@@ -425,84 +343,15 @@ def apply_frame_transforms(
         num_parallel_calls,
     )
 
-    if train:
-        # Augment all images with the same seed, skipping padding images
-        def aug(frame: dict):
-            seed = tf.random.uniform([2], maxval=tf.dtypes.int32.max, dtype=tf.int32)
-            aug_fn = partial(obs_transforms.augment, seed=seed, augment_kwargs=image_augment_kwargs)
-            return apply_obs_transform(aug_fn, frame)
-
-        dataset = dataset.frame_map(aug, num_parallel_calls)
-
     return dataset
 
 
-def make_single_dataset(
-    dataset_kwargs: dict,
-    *,
-    train: bool,
-    traj_transform_kwargs: dict = {},
-    frame_transform_kwargs: dict = {},
-) -> dl.DLataset:
-    """Creates a single dataset from kwargs. Returns a dataset of trajectories.
-
-    Args:
-        dataset_kwargs: kwargs passed to `make_dataset_from_rlds` that are dataset-specific.
-        train: whether this is a training or validation dataset.
-        traj_transform_kwargs: kwargs passed to 'apply_trajectory_transforms'.
-        frame_transform_kwargs: kwargs passed to 'get_frame_transforms'.
-    """
-    dataset, dataset_statistics = make_dataset_from_rlds(
-        **dataset_kwargs,
-        train=train,
-    )
-    dataset = apply_trajectory_transforms(dataset, **traj_transform_kwargs, train=train)
-    dataset = apply_frame_transforms(dataset, **frame_transform_kwargs, train=train)
-
-    # this seems to reduce memory usage without affecting speed
-    dataset = dataset.with_ram_budget(1)
-
-    # save for later
-    return dataset, dataset_statistics["num_trajectories"], dataset_statistics
-
-
 # === Core Initializer ===
-
-def _partition_source_indices_by_weight(
-    sample_weights: np.ndarray, world_size: int
-) -> Tuple[List[np.ndarray], np.ndarray]:
-    """Greedily partition sources so each rank receives similar sampling mass."""
-    if world_size < 1:
-        raise ValueError(f"world_size must be positive, got {world_size}.")
-    if len(sample_weights) < world_size:
-        raise ValueError(
-            "Cannot rank-shard RLDS sources when there are fewer sources than distributed ranks: "
-            f"{len(sample_weights)} sources for {world_size} ranks."
-        )
-
-    assignments: List[List[int]] = [[] for _ in range(world_size)]
-    rank_weight_mass = np.zeros(world_size, dtype=np.float64)
-    base_sources_per_rank, ranks_with_one_extra = divmod(len(sample_weights), world_size)
-    rank_capacities = np.full(world_size, base_sources_per_rank, dtype=np.int64)
-    rank_capacities[:ranks_with_one_extra] += 1
-
-    for source_idx in np.argsort(-sample_weights, kind="stable"):
-        eligible_ranks = np.asarray(
-            [rank for rank in range(world_size) if len(assignments[rank]) < rank_capacities[rank]],
-            dtype=np.int64,
-        )
-        source_rank = int(eligible_ranks[np.argmin(rank_weight_mass[eligible_ranks])])
-        assignments[source_rank].append(int(source_idx))
-        rank_weight_mass[source_rank] += float(sample_weights[source_idx])
-
-    return [np.asarray(indices, dtype=np.int64) for indices in assignments], rank_weight_mass
-
 
 def make_interleaved_dataset(
     dataset_kwargs_list: List[Dict],
     sample_weights: Optional[List[float]] = None,
     *,
-    train: bool,
     shuffle_buffer_size: int,
     traj_transform_kwargs: Optional[Dict] = None,
     frame_transform_kwargs: Optional[Dict] = None,
@@ -510,9 +359,6 @@ def make_interleaved_dataset(
     balance_weights: bool = False,
     traj_transform_threads: Optional[int] = None,
     traj_read_threads: Optional[int] = None,
-    strict_epoch_mode: bool = False,
-    shared_dataset_statistics_key: Optional[str] = None,
-    rank_shard_dataset_sources: bool = False,
 ) -> dl.DLataset:
     """
     Creates an interleaved dataset from list of dataset configs (kwargs). Returns a dataset of batched frames.
@@ -522,7 +368,6 @@ def make_interleaved_dataset(
             "num_parallel_calls" and "num_parallel_reads" are overridden using `traj_transform_threads` and
             `traj_read_threads`, respectively.
         sample_weights: sampling weights for each dataset in list. If None, defaults to uniform.
-        train: whether this is a training or validation dataset.
         shuffle_buffer_size: size of the dataset shuffle buffer (in number of frames).
         traj_transform_kwargs: kwargs passed to `apply_trajectory_transforms`. "num_parallel_calls" is
             overridden using `traj_transform_threads`.
@@ -537,27 +382,6 @@ def make_interleaved_dataset(
         traj_read_threads: total number of parallel read workers for trajectory transforms, distributed across
             datasets according to their sampling weights. If None, defaults to AUTOTUNE for every dataset.
     """
-    if strict_epoch_mode and rank_shard_dataset_sources:
-        raise ValueError(
-            "`rank_shard_dataset_sources` is only supported with `strict_epoch_mode=False`; "
-            "strict-epoch iteration already shards every source by rank."
-        )
-
-    if strict_epoch_mode:
-        return make_strict_epoch_dataset(
-            dataset_kwargs_list=dataset_kwargs_list,
-            sample_weights=sample_weights,
-            train=train,
-            shuffle_buffer_size=shuffle_buffer_size,
-            traj_transform_kwargs=traj_transform_kwargs,
-            frame_transform_kwargs=frame_transform_kwargs,
-            batch_size=batch_size,
-            balance_weights=balance_weights,
-            traj_transform_threads=traj_transform_threads,
-            traj_read_threads=traj_read_threads,
-            shared_dataset_statistics_key=shared_dataset_statistics_key,
-        )
-
     # Default to uniform sampling (if `sample_weights` is not specified)
     if not sample_weights:
         sample_weights = [1.0] * len(dataset_kwargs_list)
@@ -573,23 +397,9 @@ def make_interleaved_dataset(
     dataset_sizes, all_dataset_statistics = [], {}
     for dataset_kwargs in dataset_kwargs_list:
         data_kwargs = copy.deepcopy(dataset_kwargs)
-        if "dataset_frame_transform_kwargs" in data_kwargs:
-            data_kwargs.pop("dataset_frame_transform_kwargs")
-        _, dataset_statistics = make_dataset_from_rlds(**data_kwargs, train=train)
+        _, dataset_statistics = make_dataset_from_rlds(**data_kwargs)
         dataset_sizes.append(dataset_statistics["num_transitions"])
         all_dataset_statistics[dataset_kwargs["name"]] = dataset_statistics
-
-    normalization_statistics = all_dataset_statistics
-    returned_statistics = all_dataset_statistics
-    if shared_dataset_statistics_key is not None:
-        shared_statistics = merge_dataset_statistics(all_dataset_statistics)
-        normalization_statistics = {name: shared_statistics for name in all_dataset_statistics}
-        returned_statistics = {shared_dataset_statistics_key: shared_statistics}
-        overwatch.info(
-            "Using shared action/proprio statistics `%s` across %d datasets.",
-            shared_dataset_statistics_key,
-            len(all_dataset_statistics),
-        )
 
     # Get the indices of the "primary" datasets (i.e., datasets with sample_weight == 1.0)
     primary_dataset_indices = np.array([idx for idx in range(len(sample_weights)) if sample_weights[idx] == 1.0])
@@ -604,41 +414,9 @@ def make_interleaved_dataset(
     #   =>> Note :: Only counting the "primary" datasets (i.e., datasets with sample_weight == 1.0)
     dataset_len = int((np.array(dataset_sizes) / sample_weights)[primary_dataset_indices].max())
 
-    local_dataset_kwargs_list = dataset_kwargs_list
-    local_sample_weights = sample_weights
-    local_traj_transform_threads = traj_transform_threads
-    local_traj_read_threads = traj_read_threads
-    if rank_shard_dataset_sources:
-        source_rank = int(os.getenv("RANK", "0"))
-        world_size = int(os.getenv("WORLD_SIZE", "1"))
-        if not 0 <= source_rank < world_size:
-            raise ValueError(f"Invalid distributed rank {source_rank} for world size {world_size}.")
-
-        source_assignments, rank_weight_mass = _partition_source_indices_by_weight(sample_weights, world_size)
-        source_indices = source_assignments[source_rank]
-        local_dataset_kwargs_list = [dataset_kwargs_list[idx] for idx in source_indices]
-        local_sample_weights = sample_weights[source_indices]
-        local_sample_weights = local_sample_weights / np.sum(local_sample_weights)
-
-        # Before sharding, the budget equals the total source count. Cap the
-        # local budget so 100 sources do not become 100 workers on every rank.
-        if traj_transform_threads is not None:
-            local_traj_transform_threads = min(traj_transform_threads, len(source_indices))
-        if traj_read_threads is not None:
-            local_traj_read_threads = min(traj_read_threads, len(source_indices))
-        overwatch.info(
-            "Rank-sharded RLDS sources: rank=%d/%d sources=%d global_weight_mass=%.6f "
-            "all_rank_weight_mass=%s",
-            source_rank,
-            world_size,
-            len(source_indices),
-            rank_weight_mass[source_rank],
-            np.array2string(rank_weight_mass, precision=6),
-        )
-
     # Allocate Threads based on Weights
-    threads_per_dataset = allocate_threads(local_traj_transform_threads, local_sample_weights)
-    reads_per_dataset = allocate_threads(local_traj_read_threads, local_sample_weights)
+    threads_per_dataset = allocate_threads(traj_transform_threads, sample_weights)
+    reads_per_dataset = allocate_threads(traj_read_threads, sample_weights)
 
     overwatch.info("Threads per Dataset: %s", threads_per_dataset)
     overwatch.info("Reads per Dataset: %s", reads_per_dataset)
@@ -647,45 +425,32 @@ def make_interleaved_dataset(
     overwatch.info("Constructing datasets...")
     datasets = []
     for dataset_kwargs, threads, reads in zip(
-        local_dataset_kwargs_list,
+        dataset_kwargs_list,
         threads_per_dataset,
         reads_per_dataset,
     ):
-        dataset_frame_transform_kwargs = (
-            dataset_kwargs.pop("dataset_frame_transform_kwargs")
-            if "dataset_frame_transform_kwargs" in dataset_kwargs
-            else {}
-        )
         dataset, _ = make_dataset_from_rlds(
             **dataset_kwargs,
-            train=train,
             num_parallel_calls=threads,
             num_parallel_reads=reads,
-            dataset_statistics=normalization_statistics[dataset_kwargs["name"]],
+            dataset_statistics=all_dataset_statistics[dataset_kwargs["name"]],
         )
         dataset = apply_trajectory_transforms(
             dataset.repeat(),
             **traj_transform_kwargs,
             num_parallel_calls=threads,
-            train=train,
         ).flatten(num_parallel_calls=threads)
-        dataset = apply_per_dataset_frame_transforms(dataset, **dataset_frame_transform_kwargs)
         datasets.append(dataset)
 
     # Interleave at the Frame Level
-    dataset: dl.DLataset = dl.DLataset.sample_from_datasets(datasets, local_sample_weights)
-
-    # Validation =>> fix a single shuffle buffer of data and cache it in RAM; prevents gradual memory increase!
-    if not train:
-        dataset = dataset.take(shuffle_buffer_size).cache()
+    dataset: dl.DLataset = dl.DLataset.sample_from_datasets(datasets, sample_weights)
 
     # Shuffle the Dataset
-    #   =>> IMPORTANT :: Shuffle AFTER .cache(), or else memory will still leak!
     dataset = dataset.shuffle(shuffle_buffer_size)
 
     # Apply Frame Transforms
     overwatch.info("Applying frame transforms on dataset...")
-    dataset = apply_frame_transforms(dataset, **frame_transform_kwargs, train=train)
+    dataset = apply_frame_transforms(dataset, **frame_transform_kwargs)
 
     # [Contract] When training VLA Policies, we let the Collator handle Batching!
     if batch_size is not None:
@@ -695,101 +460,6 @@ def make_interleaved_dataset(
     dataset = dataset.with_ram_budget(1)
 
     # Save for Later
-    dataset.sample_weights = local_sample_weights
+    dataset.sample_weights = sample_weights
 
-    return dataset, dataset_len, returned_statistics
-
-
-def make_strict_epoch_dataset(
-    dataset_kwargs_list: List[Dict],
-    sample_weights: Optional[List[float]] = None,
-    *,
-    train: bool,
-    shuffle_buffer_size: int,
-    traj_transform_kwargs: Optional[Dict] = None,
-    frame_transform_kwargs: Optional[Dict] = None,
-    batch_size: Optional[int] = None,
-    balance_weights: bool = False,
-    traj_transform_threads: Optional[int] = None,
-    traj_read_threads: Optional[int] = None,
-    shared_dataset_statistics_key: Optional[str] = None,
-):
-    """Creates a finite dataset collection where one epoch visits every transformed sample exactly once."""
-    if not sample_weights:
-        sample_weights = [1.0] * len(dataset_kwargs_list)
-
-    if len(sample_weights) != len(dataset_kwargs_list):
-        raise ValueError(f"sample_weights must be None or have length {len(dataset_kwargs_list)}.")
-
-    if (traj_transform_kwargs is None) or (frame_transform_kwargs is None):
-        raise ValueError("Missing `traj_transform_kwargs` and `frame_transform_kwargs`!")
-
-    dataset_sizes, all_dataset_statistics = [], {}
-    for dataset_kwargs in dataset_kwargs_list:
-        data_kwargs = copy.deepcopy(dataset_kwargs)
-        if "dataset_frame_transform_kwargs" in data_kwargs:
-            data_kwargs.pop("dataset_frame_transform_kwargs")
-        _, dataset_statistics = make_dataset_from_rlds(**data_kwargs, train=train)
-        dataset_sizes.append(dataset_statistics["num_transitions"])
-        all_dataset_statistics[dataset_kwargs["name"]] = dataset_statistics
-
-    normalization_statistics = all_dataset_statistics
-    returned_statistics = all_dataset_statistics
-    if shared_dataset_statistics_key is not None:
-        shared_statistics = merge_dataset_statistics(all_dataset_statistics)
-        normalization_statistics = {name: shared_statistics for name in all_dataset_statistics}
-        returned_statistics = {shared_dataset_statistics_key: shared_statistics}
-
-    if balance_weights:
-        sample_weights = np.array(sample_weights) * np.array(dataset_sizes)
-    sample_weights = np.array(sample_weights) / np.sum(sample_weights)
-    pprint_data_mixture(dataset_kwargs_list, sample_weights)
-
-    threads_per_dataset = allocate_threads(traj_transform_threads, sample_weights)
-    reads_per_dataset = allocate_threads(traj_read_threads, sample_weights)
-    rank = int(os.getenv("RANK", "0"))
-    world_size = int(os.getenv("WORLD_SIZE", "1"))
-
-    overwatch.info("Strict epoch mode enabled: disabling dataset.repeat() and sample_from_datasets().")
-    overwatch.info("Threads per Dataset: %s", threads_per_dataset)
-    overwatch.info("Reads per Dataset: %s", reads_per_dataset)
-    overwatch.info("Strict epoch rank sharding: rank=%d world_size=%d", rank, world_size)
-
-    datasets = []
-    for dataset_kwargs, threads, reads in zip(
-        dataset_kwargs_list,
-        threads_per_dataset,
-        reads_per_dataset,
-    ):
-        dataset_frame_transform_kwargs = (
-            dataset_kwargs.pop("dataset_frame_transform_kwargs")
-            if "dataset_frame_transform_kwargs" in dataset_kwargs
-            else {}
-        )
-        dataset, _ = make_dataset_from_rlds(
-            **dataset_kwargs,
-            train=train,
-            num_parallel_calls=threads,
-            num_parallel_reads=reads,
-            dataset_statistics=normalization_statistics[dataset_kwargs["name"]],
-        )
-        dataset = apply_trajectory_transforms(
-            dataset,
-            **traj_transform_kwargs,
-            num_parallel_calls=threads,
-            train=train,
-        ).flatten(num_parallel_calls=threads)
-        dataset = apply_per_dataset_frame_transforms(dataset, **dataset_frame_transform_kwargs)
-        if world_size > 1:
-            dataset = dataset.shard(world_size, rank)
-        if shuffle_buffer_size > 0:
-            dataset = dataset.shuffle(shuffle_buffer_size)
-        dataset = apply_frame_transforms(dataset, **frame_transform_kwargs, train=train)
-        if batch_size is not None:
-            dataset = dataset.batch(batch_size)
-        dataset = dataset.with_ram_budget(1)
-        datasets.append(dataset)
-
-    total_dataset_len = int(np.sum(dataset_sizes))
-    overwatch.info("Strict epoch dataset length (global, before rank sharding): %d", total_dataset_len)
-    return datasets, total_dataset_len, returned_statistics
+    return dataset, dataset_len, all_dataset_statistics

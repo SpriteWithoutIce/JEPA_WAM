@@ -5,7 +5,6 @@ import os
 
 import imageio
 import numpy as np
-import tensorflow as tf
 from libero.libero import get_libero_path
 from libero.libero.envs import OffScreenRenderEnv
 
@@ -15,7 +14,7 @@ from experiments.robot.robot_utils import (
 )
 
 
-def get_libero_env(task, model_family, resolution=256):
+def get_libero_env(task, resolution=384):
     """Initializes and returns the LIBERO environment, along with the task description."""
     task_description = task.language
     task_bddl_file = os.path.join(get_libero_path("bddl_files"), task.problem_folder, task.bddl_file)
@@ -25,7 +24,7 @@ def get_libero_env(task, model_family, resolution=256):
     return env, task_description
 
 
-def get_libero_dummy_action(model_family: str):
+def get_libero_dummy_action():
     """Get dummy/no-op action, used to roll out the simulation while the robot does nothing."""
     return [0, 0, 0, 0, 0, 0, -1]
 
@@ -50,7 +49,6 @@ def save_rollout_video(
     success,
     task_description,
     log_file=None,
-    save_version=None,
     task_suite_name="unknown_suite",
 ):
     """Saves an MP4 replay of an episode."""

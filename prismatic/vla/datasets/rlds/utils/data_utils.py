@@ -15,7 +15,6 @@ import tensorflow as tf
 from tqdm import tqdm
 
 from prismatic.overwatch import initialize_overwatch
-from prismatic.vla.constants import NormalizationType
 
 # Initialize Overwatch =>> Wraps `logging.Logger`
 overwatch = initialize_overwatch(__name__)
@@ -36,47 +35,6 @@ def tree_merge(*trees: Dict) -> Dict:
     return merged
 
 
-def merge_dataset_statistics(dataset_statistics: Dict[str, Dict]) -> Dict:
-    """Merge per-dataset statistics into one transition-weighted normalization space."""
-    if not dataset_statistics:
-        raise ValueError("Cannot merge an empty dataset statistics mapping.")
-
-    statistics = list(dataset_statistics.values())
-    counts = np.asarray([float(stats["num_transitions"]) for stats in statistics], dtype=np.float64)
-    total_transitions = counts.sum()
-    if total_transitions <= 0:
-        raise ValueError("Cannot merge dataset statistics with no transitions.")
-
-    merged = {
-        "num_transitions": int(total_transitions),
-        "num_trajectories": int(sum(float(stats["num_trajectories"]) for stats in statistics)),
-    }
-    for key in ("action", "proprio"):
-        if not all(key in stats for stats in statistics):
-            continue
-
-        means = np.stack([np.asarray(stats[key]["mean"], dtype=np.float64) for stats in statistics])
-        stds = np.stack([np.asarray(stats[key]["std"], dtype=np.float64) for stats in statistics])
-        reshape = (len(counts),) + (1,) * (means.ndim - 1)
-        weights = counts.reshape(reshape)
-        mean = np.sum(weights * means, axis=0) / total_transitions
-        second_moment = np.sum(weights * (np.square(stds) + np.square(means)), axis=0) / total_transitions
-
-        merged[key] = {
-            "mean": mean,
-            "std": np.sqrt(np.maximum(second_moment - np.square(mean), 0.0)),
-            "min": np.min(np.stack([np.asarray(stats[key]["min"]) for stats in statistics]), axis=0),
-            "max": np.max(np.stack([np.asarray(stats[key]["max"]) for stats in statistics]), axis=0),
-            "q01": np.min(np.stack([np.asarray(stats[key]["q01"]) for stats in statistics]), axis=0),
-            "q99": np.max(np.stack([np.asarray(stats[key]["q99"]) for stats in statistics]), axis=0),
-        }
-        masks = [np.asarray(stats[key]["mask"], dtype=bool) for stats in statistics if "mask" in stats[key]]
-        if masks:
-            merged[key]["mask"] = np.logical_and.reduce(masks)
-
-    return merged
-
-
 def to_padding(tensor: tf.Tensor) -> tf.Tensor:
     if tf.debugging.is_numeric_tensor(tensor):
         return tf.zeros_like(tensor)
@@ -90,49 +48,32 @@ def to_padding(tensor: tf.Tensor) -> tf.Tensor:
 
 
 # ruff: noqa: B023
-def normalize_action_and_proprio(traj: Dict, metadata: Dict, normalization_type: NormalizationType):
-    """Normalizes the action and proprio fields of a trajectory using the given metadata."""
+def normalize_action_and_proprio(traj: Dict, metadata: Dict):
+    """Normalize action and proprio fields to [-1, 1] using q01/q99 bounds."""
     keys_to_normalize = {"action": "action", "proprio": "observation/proprio"}
 
-    if normalization_type == NormalizationType.NORMAL:
-        for key, traj_key in keys_to_normalize.items():
-            mask = metadata[key].get("mask", tf.ones_like(metadata[key]["mean"], dtype=tf.bool))
-            traj = dl.transforms.selective_tree_map(
-                traj,
-                match=lambda k, _: k == traj_key,
-                map_fn=lambda x: tf.where(mask, (x - metadata[key]["mean"]) / (metadata[key]["std"] + 1e-8), x),
-            )
+    for key, traj_key in keys_to_normalize.items():
+        low = metadata[key]["q01"]
+        high = metadata[key]["q99"]
+        mask = metadata[key].get("mask", tf.ones_like(low, dtype=tf.bool))
+        traj = dl.transforms.selective_tree_map(
+            traj,
+            match=lambda k, _: k == traj_key,
+            map_fn=lambda x: tf.where(
+                mask,
+                tf.clip_by_value(2 * (x - low) / (high - low + 1e-8) - 1, -1, 1),
+                x,
+            ),
+        )
 
-        return traj
+        zeros_mask = metadata[key]["min"] == metadata[key]["max"]
+        traj = dl.transforms.selective_tree_map(
+            traj,
+            match=lambda k, _: k == traj_key,
+            map_fn=lambda x: tf.where(zeros_mask, 0.0, x),
+        )
 
-    elif normalization_type in [NormalizationType.BOUNDS, NormalizationType.BOUNDS_Q99]:
-        for key, traj_key in keys_to_normalize.items():
-            if normalization_type == NormalizationType.BOUNDS:
-                low = metadata[key]["min"]
-                high = metadata[key]["max"]
-            elif normalization_type == NormalizationType.BOUNDS_Q99:
-                low = metadata[key]["q01"]
-                high = metadata[key]["q99"]
-            mask = metadata[key].get("mask", tf.ones_like(metadata[key]["min"], dtype=tf.bool))
-            traj = dl.transforms.selective_tree_map(
-                traj,
-                match=lambda k, _: k == traj_key,
-                map_fn=lambda x: tf.where(
-                    mask,
-                    tf.clip_by_value(2 * (x - low) / (high - low + 1e-8) - 1, -1, 1),
-                    x,
-                ),
-            )
-
-            # Note (Moo Jin): Map unused action dimensions (i.e., dimensions where min == max) to all 0s.
-            zeros_mask = metadata[key]["min"] == metadata[key]["max"]
-            traj = dl.transforms.selective_tree_map(
-                traj, match=lambda k, _: k == traj_key, map_fn=lambda x: tf.where(zeros_mask, 0.0, x)
-            )
-
-        return traj
-
-    raise ValueError(f"Unknown Normalization Type {normalization_type}")
+    return traj
 
 
 def binarize_gripper_actions(actions: tf.Tensor) -> tf.Tensor:

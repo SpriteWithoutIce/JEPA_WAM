@@ -58,7 +58,8 @@ JEPA-WAM/
 ├── prismatic/                         # model, data, training, and checkpoint code
 ├── vla-scripts/
 │   ├── train.py                       # distributed training entry point
-│   └── run_visual_cosine_primary.sh   # supported public recipe
+│   ├── run_visual_cosine_primary.sh   # supported public recipe
+│   └── run_libero_eval.sh             # standard LIBERO evaluation launcher
 ├── experiments/robot/libero/          # LIBERO evaluation code
 ├── tests/                              # focused architecture regression tests
 └── architecture_spec.md               # fixed public architecture specification
@@ -66,21 +67,15 @@ JEPA-WAM/
 
 ## Environment
 
-The code targets Python 3.8+ and the PyTorch 2.2 generation of the training stack. A working environment needs at least:
-
-- PyTorch and torchvision;
-- transformers and PEFT;
-- TensorFlow, TensorFlow Datasets, and dlimp for RLDS input;
-- the local V-JEPA 2.1 implementation used by the vision backbone;
-- LIBERO for evaluation.
-
-Install the repository itself with:
+The code targets Python 3.10 and PyTorch 2.2+. Install the Python dependencies and this package with:
 
 ```bash
 pip install -e .
 ```
 
-The full research environment is not completely pinned by `pyproject.toml`; use `our_envs.txt` as the environment reference.
+RLDS loading additionally requires the OpenVLA `dlimp` package, installed from its source checkout. LIBERO is only
+required for evaluation and should be installed from the official LIBERO repository. Model and environment assets are
+not vendored here.
 
 ## Required Assets
 
@@ -123,6 +118,22 @@ The script uses:
 
 Run outputs are written below `RUNS_DIR`, which defaults to `./runs`.
 
+SwanLab logging is enabled by the launch script. Remove `--use_swanlab True` to keep only local JSONL metrics.
+
+## Evaluation
+
+Set the local model and LIBERO paths, then evaluate a native JEPA-WAM checkpoint:
+
+```bash
+export BASE_VLM_RUN=/path/to/pretrained_qwen25_vjepa_vlm_run
+export LLM_PATH=/path/to/Qwen2.5-0.5B
+export VJEPA_CKPT=/path/to/vjepa2_1_vitl_dist_vitG_384.pt
+export LIBERO_PATH=/path/to/LIBERO
+
+bash vla-scripts/run_libero_eval.sh \
+  ./runs/<run>/checkpoints/latest-checkpoint.pt libero_goal 10
+```
+
 ## Fixed Model Contract
 
 The registered `jepavla-qwen25-vjepa-224px+0_5b+mx-libero-90` configuration fixes the architecture used by the public recipe:
@@ -132,7 +143,7 @@ The registered `jepavla-qwen25-vjepa-224px+0_5b+mx-libero-90` configuration fixe
 - Qwen uses its original causal attention;
 - action head type is `flow_gr00t`;
 - the action head consumes action-placeholder hidden states, not the full Qwen sequence;
-- aux-head and future-observation prediction are disabled;
+- there is no auxiliary decoder or future-observation prediction branch;
 - primary and wrist views are enabled;
 - visual-token cosine supervision is enabled;
 - the cosine head is always the two-layer MLP;
@@ -146,7 +157,14 @@ The focused tests can be run with:
 ```bash
 python -m pytest tests/test_visual_token_cosine.py
 bash -n vla-scripts/run_visual_cosine_primary.sh
+bash -n vla-scripts/run_libero_eval.sh
 ```
+
+## Public Scope
+
+This release intentionally excludes unrelated experimental backbones, alternate action heads, ALOHA/RoboTwin/CALVIN
+training code, LeRobot integrations, LIBERO-PRO utilities, deployment servers, local tokenizer copies, and pretrained
+weights. The `docs/` directory is retained solely for the project page.
 
 ## License
 

@@ -20,29 +20,16 @@ RUNS_DIR="${RUNS_DIR:-./runs}"
 
 CMD=(
     torchrun --standalone --nnodes 1 --nproc-per-node 8 vla-scripts/train.py
-    --vla.type jepavla-qwen25-vjepa-224px+0_5b+mx-libero-90
     --vla.base_vlm "${BASE_VLM_RUN}"
-    --vla.data_mix libero_4_task_suites_no_noops
     --vla.vjepa_checkpoint_path "${VJEPA_CKPT}"
     --llm_checkpoint_path "${QWEN_PATH}"
     --data_root_dir "${LIBERO_DATA}"
     --run_root_dir "${RUNS_DIR}"
     --run_id_note visual-cosine-projector-allviews
-    --vla.expected_world_size 8
-    --vla.global_batch_size 256
-    --vla.per_device_batch_size 32
-    --vla.learning_rate 2e-4
-    --vla.min_learning_rate 1e-5
-    --vla.lr_scheduler_type linear-warmup+cosine-decay
-    --vla.warmup_ratio 0.03
-    --vla.max_steps 40000
-    --vla.shuffle_buffer_size 20000
-    --vla.lora_unfreeze_last_n_llm_layers 0
     --save_interval 10000
     --seed 7
-    --use_wandb True
+    --use_swanlab True
     --debug_memory_stats False
-    --debug_embedding_viz_interval 0
     --debug_batch_shapes False
 )
 

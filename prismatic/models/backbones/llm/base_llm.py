@@ -194,17 +194,7 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
         # override the `SPECIAL_CASES` set below, but make sure to make the appropriate changes in the `datasets.py`
         # and VLM `forward()` logic!
         SPECIAL_CASES = {
-            # Phi-2 Tokenizer doesn't add any BOS tokens by default, and sets BOS == EOS == "<|endoftext|>"
-            #   =>> We'll prepend BOS to first input (to play nicely with image token insertion logic; verified that
-            #       this works well with base LLM generation.
-            #   =>> Like Llama-2 Tokenizers -- we'll add a special PAD token for training purposes.
-            "phi-2-3b",
             "qwen25-0_5b-pure",
-            "qwen25-0_5b-extra",
-            "qwen25-1_5b-pure",
-            "qwen25-3b-pure",
-            "qwen25-7b-pure",
-            "qwen3-1_7b-pure",
         }
         if self.identifier in SPECIAL_CASES:
             return

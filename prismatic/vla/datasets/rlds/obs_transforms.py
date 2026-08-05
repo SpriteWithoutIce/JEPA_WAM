@@ -13,35 +13,6 @@ import tensorflow as tf
 from absl import logging
 
 
-# ruff: noqa: B023
-def augment(obs: Dict, seed: tf.Tensor, augment_kwargs: Union[Dict, Dict[str, Dict]]) -> Dict:
-    """Augments images, skipping padding images."""
-    image_names = {key[6:] for key in obs if key.startswith("image_")}
-
-    # "augment_order" is required in augment_kwargs, so if it's there, we can assume that the user has passed
-    # in a single augmentation dict (otherwise, we assume that the user has passed in a mapping from image
-    # name to augmentation dict)
-    if "augment_order" in augment_kwargs:
-        augment_kwargs = {name: augment_kwargs for name in image_names}
-
-    for i, name in enumerate(image_names):
-        if name not in augment_kwargs:
-            continue
-        kwargs = augment_kwargs[name]
-        logging.debug(f"Augmenting image_{name} with kwargs {kwargs}")
-        obs[f"image_{name}"] = tf.cond(
-            obs["pad_mask_dict"][f"image_{name}"],
-            lambda: dl.transforms.augment_image(
-                obs[f"image_{name}"],
-                **kwargs,
-                seed=seed + i,  # augment each image differently
-            ),
-            lambda: obs[f"image_{name}"],  # skip padding images
-        )
-
-    return obs
-
-
 def decode_and_resize(
     obs: Dict,
     resize_size: Union[Tuple[int, int], Dict[str, Tuple[int, int]]],

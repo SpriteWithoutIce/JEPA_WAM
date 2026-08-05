@@ -4,6 +4,7 @@ import torch
 
 from prismatic.conf.vla import Exp_JEPAVLA_Qwen25_VJEPA_0_5B_LIBERO_90
 from prismatic.models.action_heads import VisualTokenCosineHead
+from prismatic.models.vlms.prismatic import PrismaticVLM
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -36,13 +37,31 @@ def test_visual_token_cosine_is_zero_for_identical_normalized_embeddings() -> No
     torch.testing.assert_close(loss, torch.zeros_like(loss), atol=1e-6, rtol=0.0)
 
 
+def test_action_memory_uses_last_non_padding_tokens_per_sample() -> None:
+    hidden = torch.arange(20, dtype=torch.float32).reshape(2, 10, 1)
+    attention_mask = torch.tensor(
+        [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 1, 0, 0, 0],
+        ],
+        dtype=torch.bool,
+    )
+
+    selected = PrismaticVLM._select_action_memory(hidden, attention_mask, num_action_tokens=3)
+
+    torch.testing.assert_close(selected[0, :, 0], torch.tensor([7.0, 8.0, 9.0]))
+    torch.testing.assert_close(selected[1, :, 0], torch.tensor([14.0, 15.0, 16.0]))
+
+
 def test_public_recipe_keeps_single_visual_cosine_architecture() -> None:
+    cfg = Exp_JEPAVLA_Qwen25_VJEPA_0_5B_LIBERO_90()
     script = (REPO_ROOT / "vla-scripts" / "run_visual_cosine_primary.sh").read_text()
     architecture_source = "\n".join(
         path.read_text()
         for path in (
             REPO_ROOT / "prismatic" / "conf" / "vla.py",
             REPO_ROOT / "prismatic" / "models" / "action_heads.py",
+            REPO_ROOT / "prismatic" / "models" / "flow_gr00t_action_head.py",
             REPO_ROOT / "prismatic" / "models" / "vlms" / "prismatic.py",
             REPO_ROOT / "prismatic" / "vla" / "datasets" / "datasets.py",
             REPO_ROOT / "prismatic" / "vla" / "materialize.py",
@@ -51,9 +70,11 @@ def test_public_recipe_keeps_single_visual_cosine_architecture() -> None:
     )
 
     assert "--run_id_note visual-cosine-projector-allviews" in script
-    assert "--vla.expected_world_size 8" in script
-    assert "--vla.global_batch_size 256" in script
-    assert "--vla.max_steps 40000" in script
+    assert "--nproc-per-node 8" in script
+    assert cfg.expected_world_size == 8
+    assert cfg.global_batch_size == 256
+    assert cfg.per_device_batch_size == 32
+    assert cfg.max_steps == 40_000
 
     forbidden = (
         "llm_prefix_bidirectional_attention",
@@ -61,6 +82,11 @@ def test_public_recipe_keeps_single_visual_cosine_architecture() -> None:
         "visual_token_cosine_layer_idx",
         "visual_token_cosine_projection_type",
         "visual_token_cosine_target_future_only",
+        "action_queries",
+        "aux_head",
+        "vla-lora-last-n-train",
+        "vla-vlm-peft-train",
+        "DiT-B",
     )
     for option in forbidden:
         assert option not in script
@@ -70,16 +96,31 @@ def test_public_recipe_keeps_single_visual_cosine_architecture() -> None:
 def test_public_vla_config_matches_released_model() -> None:
     cfg = Exp_JEPAVLA_Qwen25_VJEPA_0_5B_LIBERO_90()
 
-    assert cfg.image_sequence_len == 2
-    assert cfg.use_wrist_image is True
-    assert cfg.freeze_vision_backbone is True
-    assert cfg.use_lora is True
     assert (cfg.lora_rank, cfg.lora_alpha, cfg.lora_dropout) == (32, 64, 0.1)
-    assert cfg.action_head_type == "flow_gr00t"
-    assert cfg.flow_gr00t_use_full_llm_hidden is False
-    assert cfg.use_aux_head is False
-    assert cfg.use_visual_token_cosine_head is True
+    assert cfg.flow_gr00t_placeholder_tokens > 0
     assert cfg.lambda_visual_token_cosine == 0.5
     assert cfg.visual_token_pair_offset == 31
-    assert cfg.future_obs_window_size == 0
-    assert cfg.rotation_representation == "axis_angle"
+    assert cfg.d_action == 7
+    assert cfg.d_proprio == 8
+
+
+def test_removed_experimental_packages_are_not_published() -> None:
+    removed_paths = (
+        "jepa_wam",
+        "lerobot",
+        "meta",
+        "pretrained_models",
+        "experiments/robot/aloha",
+        "experiments/robot/server_deploy",
+        "prismatic/extern",
+        "prismatic/preprocessing",
+        "prismatic/models/flow_gr00t_jepa_action_head.py",
+        "prismatic/training/train_utils.py",
+        "prismatic/util/batching_utils.py",
+    )
+    for relative_path in removed_paths:
+        path = REPO_ROOT / relative_path
+        if path.is_dir():
+            assert not any(path.rglob("*.py"))
+        else:
+            assert not path.exists()

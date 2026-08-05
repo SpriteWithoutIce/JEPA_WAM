@@ -42,12 +42,6 @@ class FlowMatchingActionHeadConfig(PretrainedConfig):
             setattr(self, key, value)
 
 
-DIT_CONFIGS = {
-    "DiT-B": {"input_embedding_dim": 768, "attention_head_dim": 64, "num_attention_heads": 12},
-    "DiT-L": {"input_embedding_dim": 1536, "attention_head_dim": 48, "num_attention_heads": 32},
-}
-
-
 class FlowMatchingActionHead(nn.Module):
     """
     VLA-JEPA GR00T action head adapted to JEPA-WAM.
@@ -64,7 +58,6 @@ class FlowMatchingActionHead(nn.Module):
         d_llm: int,
         horizon: int,
         fm_hidden_size: int = 1024,
-        fm_action_model_type: str = "DiT-B",
         fm_num_layers: int = 16,
         fm_num_inference_timesteps: int = 4,
         fm_num_timestep_buckets: int = 1000,
@@ -78,7 +71,7 @@ class FlowMatchingActionHead(nn.Module):
     ):
         super().__init__()
 
-        action_model_cfg = DIT_CONFIGS[fm_action_model_type]
+        action_model_cfg = {"input_embedding_dim": 1536, "attention_head_dim": 48, "num_attention_heads": 32}
         self.input_embedding_dim = action_model_cfg["input_embedding_dim"]
         diffusion_model_cfg = {
             **action_model_cfg,

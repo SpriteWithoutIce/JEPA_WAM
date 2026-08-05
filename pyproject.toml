@@ -7,8 +7,8 @@ name = "jepa-wam"
 description = "jepa-wam"
 version = "0.0.1"
 readme = "README.md"
-requires-python = ">=3.8"
-keywords = ["vision-language-action models", "tiny-scale backbone", "fine-tuning", "robotic learning"]
+requires-python = ">=3.10"
+keywords = ["vision-language-action", "robot learning", "V-JEPA", "LIBERO"]
 license = {file = "LICENSE"}
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -18,26 +18,30 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3 :: Only",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    
+    "absl-py>=2.0",
+    "diffusers>=0.30",
+    "draccus>=0.8",
+    "jsonlines>=4.0",
+    "numpy>=1.26,<2",
+    "peft>=0.13",
+    "pillow>=10",
+    "psutil>=5.9",
+    "pyyaml>=6.0",
+    "swanlab>=0.6",
+    "tensorflow>=2.15,<2.16",
+    "tensorflow-datasets>=4.9",
+    "torch>=2.2",
+    "torchvision>=0.17",
+    "tqdm>=4.66",
+    "transformers>=4.45,<5",
 ]
 
 [project.optional-dependencies]
-lerobot = [
-    "datasets==3.6.0",
-    "pyarrow>=15.0.0",
-    "pandas>=2.0.0",
-    "jsonlines>=4.0.0",
-    "huggingface-hub>=0.27.1",
-    "packaging>=24.2",
-    "av>=12.0.5,<13.0.0",
-]
 dev = [
     "black>=24.2.0",
     "gpustat",
@@ -45,26 +49,22 @@ dev = [
     "pre-commit",
     "ruff>=0.2.2",
 ]
-sagemaker = [
-    "boto3",
-    "sagemaker"
-]
-
 [tool.setuptools.packages.find]
 where = ["."]
-exclude = ["cache"]
+include = ["prismatic*"]
+namespaces = false
 
 [tool.setuptools.package-data]
 "prismatic" = ["py.typed"]
 
 [tool.black]
 line-length = 121
-target-version = ["py38", "py39", "py310"]
+target-version = ["py310"]
 preview = true
 
 [tool.ruff]
 line-length = 121
-target-version = "py38"
+target-version = "py310"
 
 [tool.ruff.lint]
 select = ["A", "B", "E", "F", "I", "RUF", "W"]
