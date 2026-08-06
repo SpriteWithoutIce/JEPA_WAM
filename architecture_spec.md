@@ -12,7 +12,7 @@ Each LIBERO training example contains:
 | paired clip | `[B, V, 2, 3, H, W]` | each view at `[t, t + 31]` |
 | text tokens | `[B, L]` | language instruction |
 | proprio | `[B, 8]` | LIBERO robot state |
-| actions | `[B, 8, 7]` | eight-step action chunk |
+| actions | `[B, 20, 7]` | twenty-step action chunk |
 
 The public recipe uses two views (`V = 2`): primary and wrist.
 
@@ -69,8 +69,12 @@ The full Qwen hidden sequence is not supplied directly to the action head. Visua
 The action loss is the flow-matching regression loss:
 
 ```text
-L_action = mean(masked_flow_matching_error)
+L_action = mean(flow_matching_error)
 ```
+
+The mean covers every batch, horizon, and action-dimension element. Endpoint-padded
+timesteps at the end of a trajectory participate in the loss, matching the released
+checkpoint training behavior.
 
 The action transformer uses its standard non-causal token interaction path.
 
@@ -137,6 +141,7 @@ The following objectives are disabled in this architecture:
 | language model | Qwen2.5-0.5B with LoRA |
 | attention | native Qwen causal attention |
 | views | primary + wrist |
+| action horizon | 20 |
 | action head | Flow GR00T |
 | action conditioning | Qwen action-placeholder states |
 | visual alignment head | `Linear -> GELU -> Linear` |

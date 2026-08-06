@@ -10,6 +10,7 @@ import torch
 from prismatic.models.materialize import get_llm_backbone_and_tokenizer, get_vision_backbone_and_transform
 from prismatic.models.vlas import OpenVLA
 from prismatic.overwatch import initialize_overwatch
+from prismatic.vla.constants import NUM_ACTIONS_CHUNK
 
 overwatch = initialize_overwatch(__name__)
 
@@ -118,6 +119,7 @@ def load_vla(
         norm_stats=norm_stats,
         d_action=int(vla_cfg.get("d_action", 7)),
         d_proprio=int(vla_cfg.get("d_proprio", 8)),
+        action_horizon=int(vla_cfg.get("action_horizon", NUM_ACTIONS_CHUNK)),
         flow_gr00t_placeholder_tokens=int(vla_cfg.get("flow_gr00t_placeholder_tokens", 64)),
         fm_hidden_size=int(vla_cfg.get("fm_hidden_size", 1024)),
         fm_num_layers=int(vla_cfg.get("fm_num_layers", 16)),

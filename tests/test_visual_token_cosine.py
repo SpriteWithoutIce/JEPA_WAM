@@ -4,6 +4,7 @@ import torch
 
 from prismatic.conf.vla import Exp_JEPAVLA_Qwen25_VJEPA_0_5B_LIBERO_90
 from prismatic.models.action_heads import VisualTokenCosineHead
+from prismatic.models.flow_gr00t_action_head import FlowMatchingActionHead
 from prismatic.models.vlms.prismatic import PrismaticVLM
 
 
@@ -37,7 +38,7 @@ def test_visual_token_cosine_is_zero_for_identical_normalized_embeddings() -> No
     torch.testing.assert_close(loss, torch.zeros_like(loss), atol=1e-6, rtol=0.0)
 
 
-def test_action_memory_uses_last_non_padding_tokens_per_sample() -> None:
+def test_action_memory_uses_last_sequence_tokens_per_sample() -> None:
     hidden = torch.arange(20, dtype=torch.float32).reshape(2, 10, 1)
     attention_mask = torch.tensor(
         [
@@ -50,7 +51,31 @@ def test_action_memory_uses_last_non_padding_tokens_per_sample() -> None:
     selected = PrismaticVLM._select_action_memory(hidden, attention_mask, num_action_tokens=3)
 
     torch.testing.assert_close(selected[0, :, 0], torch.tensor([7.0, 8.0, 9.0]))
-    torch.testing.assert_close(selected[1, :, 0], torch.tensor([14.0, 15.0, 16.0]))
+    torch.testing.assert_close(selected[1, :, 0], torch.tensor([17.0, 18.0, 19.0]))
+
+
+def test_action_loss_averages_the_full_chunk(monkeypatch) -> None:
+    head = FlowMatchingActionHead.__new__(FlowMatchingActionHead)
+    torch.nn.Module.__init__(head)
+    head.num_timestep_buckets = 1_000
+    head._prepare_state = lambda proprio: proprio
+    head.sample_time = lambda batch_size, device, dtype: torch.zeros(batch_size, device=device, dtype=dtype)
+    head._predict_velocity = lambda vl_embs, actions, timesteps, state: torch.zeros_like(actions)
+    monkeypatch.setattr(
+        torch,
+        "randn",
+        lambda shape, device=None, dtype=None: torch.zeros(shape, device=device, dtype=dtype),
+    )
+
+    action_gt = torch.tensor([[[1.0], [3.0]], [[5.0], [7.0]]])
+    loss, _ = head(
+        torch.zeros(2, 1, 1),
+        torch.zeros(2, 1),
+        action_gt,
+        action_valid_mask=torch.zeros(2, 2, dtype=torch.bool),
+    )
+
+    torch.testing.assert_close(loss, action_gt.square().mean())
 
 
 def test_public_recipe_keeps_single_visual_cosine_architecture() -> None:
@@ -104,6 +129,7 @@ def test_public_vla_config_matches_released_model() -> None:
     assert cfg.visual_token_pair_offset == 31
     assert cfg.d_action == 7
     assert cfg.d_proprio == 8
+    assert cfg.action_horizon == 20
 
 
 def test_removed_experimental_packages_are_not_published() -> None:

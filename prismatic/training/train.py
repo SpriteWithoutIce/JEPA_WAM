@@ -139,6 +139,7 @@ def build_vla_from_base_vlm(
         enable_mixed_precision_training=cfg.vla.enable_mixed_precision_training,
         d_action=cfg.vla.d_action,
         d_proprio=cfg.vla.d_proprio,
+        action_horizon=cfg.vla.action_horizon,
         fm_hidden_size=cfg.vla.fm_hidden_size,
         fm_num_layers=cfg.vla.fm_num_layers,
         fm_num_inference_timesteps=cfg.vla.fm_num_inference_timesteps,

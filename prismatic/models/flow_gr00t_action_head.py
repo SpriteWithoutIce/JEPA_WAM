@@ -179,8 +179,6 @@ class FlowMatchingActionHead(nn.Module):
         vl_embs: torch.Tensor,
         proprio: torch.Tensor,
         action_gt: torch.Tensor,
-        action_valid_mask: torch.Tensor = None,
-        action_valid_dim: int | None = None,
         **_: object,
     ):
         compute_dtype = vl_embs.dtype
@@ -195,29 +193,7 @@ class FlowMatchingActionHead(nn.Module):
 
         t_discretized = (t[:, 0, 0] * self.num_timestep_buckets).long()
         pred_actions = self._predict_velocity(vl_embs, noisy_trajectory, t_discretized, state)
-        squared_error = (pred_actions - velocity) ** 2
-        if action_valid_dim is not None:
-            if action_valid_dim <= 0 or action_valid_dim > squared_error.shape[-1]:
-                raise ValueError(
-                    f"action_valid_dim={action_valid_dim} is invalid for action dim {squared_error.shape[-1]}."
-                )
-            dim_mask = torch.zeros(squared_error.shape[-1], device=squared_error.device, dtype=squared_error.dtype)
-            dim_mask[:action_valid_dim] = 1
-        else:
-            dim_mask = torch.ones(squared_error.shape[-1], device=squared_error.device, dtype=squared_error.dtype)
-
-        if action_valid_mask is None:
-            loss = (squared_error * dim_mask).sum() / (
-                squared_error.shape[0] * squared_error.shape[1] * dim_mask.sum()
-            ).clamp_min(1.0)
-        else:
-            if action_valid_mask.shape != squared_error.shape[:2]:
-                raise ValueError(
-                    f"action_valid_mask shape {tuple(action_valid_mask.shape)} does not match "
-                    f"action trajectory shape {tuple(squared_error.shape[:2])}."
-                )
-            mask = action_valid_mask.to(device=squared_error.device, dtype=squared_error.dtype).unsqueeze(-1)
-            loss = (squared_error * mask * dim_mask).sum() / (mask.sum() * dim_mask.sum()).clamp_min(1.0)
+        loss = ((pred_actions - velocity) ** 2).mean()
         return loss, pred_actions
 
     @torch.no_grad()

@@ -7,7 +7,7 @@ from typing import Optional, Tuple, Union
 
 from draccus import ChoiceRegistry
 
-from prismatic.vla.constants import NUM_TOKENS
+from prismatic.vla.constants import NUM_ACTIONS_CHUNK, NUM_TOKENS
 
 
 @dataclass
@@ -34,6 +34,7 @@ class VLAConfig(ChoiceRegistry):
 
     d_action: int = 7
     d_proprio: int = 8
+    action_horizon: int = NUM_ACTIONS_CHUNK
     flow_gr00t_placeholder_tokens: int = NUM_TOKENS
     fm_hidden_size: int = 1024
     fm_num_layers: int = 16

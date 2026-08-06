@@ -233,15 +233,10 @@ class PrismaticVLM(VLM):
         fused_attention_mask: torch.Tensor,
         num_action_tokens: int,
     ) -> torch.Tensor:
-        """Gather the final non-padding tokens from every sample."""
-        valid_lengths = fused_attention_mask.long().sum(dim=1)
-        if torch.any(valid_lengths < num_action_tokens):
+        """Use the final action-placeholder span from the padded sequence."""
+        if llm_hidden.shape[1] < num_action_tokens:
             raise ValueError("Input sequence is shorter than the configured action placeholder span.")
-
-        offsets = torch.arange(num_action_tokens, device=llm_hidden.device)
-        positions = valid_lengths[:, None] - num_action_tokens + offsets[None, :]
-        gather_index = positions[..., None].expand(-1, -1, llm_hidden.shape[-1])
-        return llm_hidden.gather(1, gather_index)
+        return llm_hidden[:, -num_action_tokens:, :]
 
     def forward(
         self,
@@ -250,8 +245,6 @@ class PrismaticVLM(VLM):
         pixel_values: Union[torch.FloatTensor, Dict[str, torch.Tensor]],
         pair_pixel_values: Optional[Union[torch.FloatTensor, Dict[str, torch.Tensor]]] = None,
         actions: Optional[torch.FloatTensor] = None,
-        action_valid_mask: Optional[torch.BoolTensor] = None,
-        action_valid_dim: Optional[int] = None,
         proprio: Optional[torch.FloatTensor] = None,
     ) -> dict:
         """Run the fixed JEPA-WAM action and visual-alignment forward pass."""
@@ -353,8 +346,6 @@ class PrismaticVLM(VLM):
                 action_memory,
                 proprio,
                 actions,
-                action_valid_mask=action_valid_mask,
-                action_valid_dim=action_valid_dim,
             )
             total_loss = total_loss + loss_action
 

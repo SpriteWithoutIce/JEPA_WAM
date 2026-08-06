@@ -286,8 +286,6 @@ class TrainingStrategy(ABC):
                         "pixel_values",
                         "pair_pixel_values",
                         "actions",
-                        "action_valid_mask",
-                        "action_valid_dim",
                         "proprio",
                         "input_ids",
                         "attention_mask",
@@ -312,8 +310,6 @@ class TrainingStrategy(ABC):
                     pixel_values=batch["pixel_values"],
                     pair_pixel_values=batch.get("pair_pixel_values"),
                     actions=batch.get("actions"),
-                    action_valid_mask=batch.get("action_valid_mask"),
-                    action_valid_dim=batch.get("action_valid_dim"),
                     proprio=batch.get("proprio"),
                 )
                 loss = output["loss"]
