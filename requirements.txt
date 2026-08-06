@@ -1,4 +1,4 @@
-# Tested runtime lock from /ssd_node5/jepa_copy (Python 3.10.16, CUDA 12.1).
+# Tested runtime lock for Python 3.10.16 and CUDA 12.1.
 # Install PyTorch first, then install this file with --no-build-isolation so
 # flash-attn can compile against the already-installed torch package.
 
@@ -13,6 +13,7 @@ easydict==1.13
 einops==0.8.2
 flash-attn==2.7.4.post1
 gym==0.26.2
+huggingface-hub==0.36.0
 imageio==2.37.3
 imageio-ffmpeg==0.6.0
 jsonlines==4.0.0

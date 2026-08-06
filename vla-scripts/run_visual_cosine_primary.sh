@@ -7,26 +7,22 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${REPO_ROOT}"
 export PYTHONPATH="${REPO_ROOT}:${PYTHONPATH:-}"
 
-JEPA_ENV="${JEPA_ENV:-/ssd_node5/jepa_copy}"
-TORCHRUN_BIN="${TORCHRUN_BIN:-${JEPA_ENV}/bin/torchrun}"
-if [[ ! -x "${TORCHRUN_BIN}" ]]; then
-    TORCHRUN_BIN="$(command -v torchrun || true)"
-fi
+TORCHRUN_BIN="${TORCHRUN_BIN:-$(command -v torchrun || true)}"
 
 LOG_DIR="${LOG_DIR:-./logs}"
 mkdir -p "${LOG_DIR}"
 
 LOG_FILE="${LOG_DIR}/train_jepa_visual_cosine_primary_$(date +%Y%m%d_%H%M%S).log"
-LIBERO_DATA="${LIBERO_DATA:-/ssd/linyihan/datasets/modified_libero_rlds}"
-QWEN_PATH="${QWEN_PATH:-/ssd/linyihan/ckpt/Qwen2.5-0.5B}"
-VJEPA_CKPT="${VJEPA_CKPT:-/ssd/linyihan/ckpt/vjepa2_1_vitl_dist_vitG_384.pt}"
-BASE_VLM_RUN="${BASE_VLM_RUN:-/ssd/linyihan/ckpt/prism-qwen25-vjepa21-vitl-384px+0_5b+stage-finetune+x7}"
+: "${LIBERO_DATA:?Set LIBERO_DATA to the modified LIBERO RLDS dataset root}"
+: "${QWEN_PATH:?Set QWEN_PATH to the downloaded Qwen2.5-0.5B directory}"
+: "${VJEPA_CKPT:?Set VJEPA_CKPT to the downloaded V-JEPA 2.1 ViT-L checkpoint}"
+: "${BASE_VLM_RUN:?Set BASE_VLM_RUN to the downloaded pretrained VLM run directory}"
 RUNS_DIR="${RUNS_DIR:-./runs}"
 SMOKE_TEST="${SMOKE_TEST:-0}"
 DRY_RUN="${DRY_RUN:-0}"
 
 if [[ -z "${TORCHRUN_BIN}" || ! -x "${TORCHRUN_BIN}" ]]; then
-    echo "torchrun is not available. Set JEPA_ENV or TORCHRUN_BIN." >&2
+    echo "torchrun is not available. Activate the project environment or set TORCHRUN_BIN." >&2
     exit 1
 fi
 
@@ -46,7 +42,7 @@ if [[ "${SMOKE_TEST}" == "1" ]]; then
     NPROC_PER_NODE=1
     RUN_ID_NOTE="visual-cosine-projector-allviews-smoke"
     USE_SWANLAB=False
-    export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-7}"
+    export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
     EXTRA_ARGS+=(
         --vla.expected_world_size 1
         --vla.global_batch_size 1

@@ -161,3 +161,17 @@ def test_libero_plus_launcher_matches_native_checkpoint_evaluator() -> None:
         "--use_wandb",
     ):
         assert removed_option not in launcher
+
+
+def test_public_launchers_require_explicit_asset_paths() -> None:
+    training = (REPO_ROOT / "vla-scripts" / "run_visual_cosine_primary.sh").read_text()
+    evaluation = (REPO_ROOT / "vla-scripts" / "libero_plus.sh").read_text()
+
+    for variable in ("LIBERO_DATA", "QWEN_PATH", "VJEPA_CKPT", "BASE_VLM_RUN"):
+        assert f'${{{variable}:?' in training
+    for variable in ("QWEN_PATH", "VJEPA_CKPT", "BASE_VLM_RUN", "LIBERO_PATH"):
+        assert f'${{{variable}:?' in evaluation
+
+    assert "DEFAULT_CHECKPOINT" not in evaluation
+    assert "JEPA_ENV" not in training
+    assert "JEPA_ENV" not in evaluation

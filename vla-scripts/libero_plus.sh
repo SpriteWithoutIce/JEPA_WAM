@@ -4,10 +4,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-JEPA_ENV="${JEPA_ENV:-/ssd_node5/jepa_copy}"
-PYTHON_BIN="${PYTHON_BIN:-${JEPA_ENV}/bin/python}"
+PYTHON_BIN="${PYTHON_BIN:-$(command -v python3 || true)}"
 
-DEFAULT_CHECKPOINT="${REPO_ROOT}/../JEPA-WAM/runs/jepavla-qwen25-vjepa-224px+0_5b+mx-libero-90+n1+b16+x7--visual-cosine-projector-allviews--20260719_172457/checkpoints/latest-checkpoint.pt"
 RUNS_DIR="${RUNS_DIR:-${REPO_ROOT}/runs}"
 
 CHECKPOINT="${1:-${CHECKPOINT:-}}"
@@ -23,27 +21,25 @@ if [[ -z "${CHECKPOINT}" && -d "${RUNS_DIR}" ]]; then
             | cut -d' ' -f2-
     )"
 fi
-if [[ -z "${CHECKPOINT}" && -f "${DEFAULT_CHECKPOINT}" ]]; then
-    CHECKPOINT="${DEFAULT_CHECKPOINT}"
+
+if [[ -z "${CHECKPOINT}" ]]; then
+    echo "Usage: bash vla-scripts/libero_plus.sh CHECKPOINT [TASK_SUITE] [CATEGORIES] [TRIALS]" >&2
+    echo "Example: bash vla-scripts/libero_plus.sh ./runs/xxx/checkpoints/latest-checkpoint.pt libero_spatial all 1" >&2
+    echo "Download released checkpoints from https://huggingface.co/CokeAnd1ce/JEPA_WAM" >&2
+    exit 1
 fi
 
-BASE_VLM_RUN="${BASE_VLM_RUN:-/ssd/linyihan/ckpt/prism-qwen25-vjepa21-vitl-384px+0_5b+stage-finetune+x7}"
-QWEN_PATH="${QWEN_PATH:-/ssd/linyihan/ckpt/Qwen2.5-0.5B}"
-VJEPA_CKPT="${VJEPA_CKPT:-/ssd/linyihan/ckpt/vjepa2_1_vitl_dist_vitG_384.pt}"
-LIBERO_PATH="${LIBERO_PATH:-/root/linyihan/LIBERO-plus}"
+: "${BASE_VLM_RUN:?Set BASE_VLM_RUN to the downloaded pretrained VLM run directory}"
+: "${QWEN_PATH:?Set QWEN_PATH to the downloaded Qwen2.5-0.5B directory}"
+: "${VJEPA_CKPT:?Set VJEPA_CKPT to the downloaded V-JEPA 2.1 ViT-L checkpoint}"
+: "${LIBERO_PATH:?Set LIBERO_PATH to the LIBERO-Plus checkout}"
 MAX_TASKS="${MAX_TASKS:-0}"
 MAX_EPISODE_STEPS="${MAX_EPISODE_STEPS:-0}"
 SAVE_ROLLOUTS="${SAVE_ROLLOUTS:-True}"
 DRY_RUN="${DRY_RUN:-0}"
 
 if [[ ! -x "${PYTHON_BIN}" ]]; then
-    echo "Python executable not found: ${PYTHON_BIN}. Set JEPA_ENV or PYTHON_BIN." >&2
-    exit 1
-fi
-
-if [[ -z "${CHECKPOINT}" ]]; then
-    echo "Usage: bash vla-scripts/libero_plus.sh CHECKPOINT [TASK_SUITE] [CATEGORIES] [TRIALS]" >&2
-    echo "Example: bash vla-scripts/libero_plus.sh ./runs/xxx/checkpoints/latest-checkpoint.pt libero_spatial all 1" >&2
+    echo "Python executable not found: ${PYTHON_BIN}. Activate the project environment or set PYTHON_BIN." >&2
     exit 1
 fi
 
@@ -84,9 +80,13 @@ export LIBERO_CONFIG_PATH="${LIBERO_CONFIG_DIR}"
 export LIBERO_PATH
 export PYTHONPATH="${REPO_ROOT}:${LIBERO_PATH}:${PYTHONPATH:-}"
 export TOKENIZERS_PARALLELISM=false
-export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-7}"
 export MUJOCO_GL="${MUJOCO_GL:-egl}"
-export MUJOCO_EGL_DEVICE_ID="${MUJOCO_EGL_DEVICE_ID:-${CUDA_VISIBLE_DEVICES%%,*}}"
+if [[ -n "${CUDA_VISIBLE_DEVICES:-}" ]]; then
+    DEFAULT_EGL_DEVICE="${CUDA_VISIBLE_DEVICES%%,*}"
+else
+    DEFAULT_EGL_DEVICE=0
+fi
+export MUJOCO_EGL_DEVICE_ID="${MUJOCO_EGL_DEVICE_ID:-${DEFAULT_EGL_DEVICE}}"
 export PYOPENGL_PLATFORM="${PYOPENGL_PLATFORM:-egl}"
 export NUMBA_DISABLE_JIT="${NUMBA_DISABLE_JIT:-1}"
 export MPLCONFIGDIR="${MPLCONFIGDIR:-/tmp/jepa_wam_matplotlib}"

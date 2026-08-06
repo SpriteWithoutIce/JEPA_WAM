@@ -4,11 +4,16 @@
   <h3>Learning Vision-Language-Action Policies with Joint-Embedding World Modeling</h3>
 
   <p>
-    <a href="https://spritewithoutice.github.io/JEPA_WAM/"><strong>Project Page</strong></a>
-    &nbsp;|&nbsp;
-    <strong>arXiv (Coming Soon)</strong>
-    &nbsp;|&nbsp;
-    <a href="https://github.com/SpriteWithoutIce/JEPA_WAM"><strong>Code</strong></a>
+    <a href="https://spritewithoutice.github.io/JEPA_WAM/">
+      <img src="https://img.shields.io/badge/Project-Page-2563eb?style=for-the-badge" alt="Project page" />
+    </a>
+    <a href="https://huggingface.co/CokeAnd1ce/JEPA_WAM">
+      <img src="https://img.shields.io/badge/Models-Hugging_Face-ffd21e?style=for-the-badge" alt="Hugging Face models" />
+    </a>
+    <a href="docs/assets/demo.mp4">
+      <img src="https://img.shields.io/badge/Demo-Video-16a34a?style=for-the-badge" alt="Demo video" />
+    </a>
+    <img src="https://img.shields.io/badge/arXiv-Coming_Soon-b31b1b?style=for-the-badge" alt="arXiv coming soon" />
   </p>
 </div>
 
@@ -16,21 +21,42 @@
   <img src="docs/assets/teaser.webp" alt="JEPA-WAM overview" width="760" />
 </p>
 
-JEPA-WAM is a vision-language-action policy that learns robot control with joint-embedding world modeling. Instead of
-generating future RGB observations, the released recipe supervises the policy in the latent space of a frozen V-JEPA
-2.1 encoder. The same Qwen representation used for action prediction is aligned with paired future visual tokens,
-providing transition-aware supervision without an image decoder at deployment time.
+JEPA-WAM is a vision-language-action policy that adds joint-embedding world-model supervision to robot policy
+learning. Instead of reconstructing future RGB observations, it aligns policy visual states with future features from a
+frozen V-JEPA 2.1 encoder. This provides transition-aware supervision during training without adding an image decoder
+or extra perception pass at deployment time.
 
-This repository contains one fixed public recipe for LIBERO training and LIBERO-Plus evaluation. Experimental
-backbones, alternative action heads, and unrelated robot platforms are intentionally excluded.
+This repository releases the fixed JEPA-WAM recipe used for LIBERO training and LIBERO-Plus evaluation. It contains
+one training launcher, one evaluation launcher, the model implementation, and focused regression tests.
+
+## Release Status
+
+- [x] Training and LIBERO-Plus evaluation code
+- [x] Pretrained base VLM and LIBERO policy checkpoint
+- [x] Project page and demo
+- [ ] arXiv paper and BibTeX
 
 ## Highlights
 
-- Frozen V-JEPA 2.1 ViT-L visual encoder with primary and wrist camera inputs.
-- Qwen2.5-0.5B multimodal policy adapted with LoRA.
+- Frozen V-JEPA 2.1 ViT-L encoder for primary and wrist observations.
+- Qwen2.5-0.5B policy backbone adapted with LoRA.
 - GR00T-style flow-matching head for continuous action chunks.
-- Dense visual-token cosine supervision from paired V-JEPA targets.
-- One reproducible training launcher and one LIBERO-Plus evaluation launcher.
+- Dense cosine alignment between policy visual tokens and paired future V-JEPA targets.
+- Reproducible launchers with full and end-to-end smoke-test modes.
+
+## Contents
+
+- [Method](#method)
+- [Installation](#installation)
+- [Data Preparation](#data-preparation)
+- [Pretrained Models](#pretrained-models)
+- [Path Configuration](#path-configuration)
+- [Training](#training)
+- [LIBERO-Plus Evaluation](#libero-plus-evaluation)
+- [Results](#results)
+- [Verification](#verification)
+- [Repository Structure](#repository-structure)
+- [Citation](#citation)
 
 ## Method
 
@@ -38,37 +64,26 @@ backbones, alternative action heads, and unrelated robot platforms are intention
   <img src="docs/assets/method-balanced.webp" alt="JEPA-WAM method" width="900" />
 </p>
 
-For every training sample, JEPA-WAM processes the current primary and wrist observations with a frozen V-JEPA 2.1
-encoder. The visual tokens are projected into Qwen2.5, followed by the language instruction and learned action
+For each training sample, the current primary and wrist observations are encoded by a frozen V-JEPA 2.1 encoder. The
+resulting visual tokens are projected into Qwen2.5 and concatenated with the language instruction and learned action
 placeholder tokens. Qwen keeps its native causal attention mask.
 
-The final action-placeholder states condition a flow-matching action head. In parallel, a two-layer MLP maps the final
-Qwen visual states back to the V-JEPA embedding dimension and aligns them with detached paired-frame targets:
+The final action-placeholder states condition a flow-matching action head. In parallel, a two-layer MLP projects the
+final Qwen visual states back to the V-JEPA embedding dimension and aligns them with detached paired-frame targets:
 
 ```text
 loss = action_flow_matching_loss + 0.5 * visual_token_cosine_loss
 ```
 
-See [architecture_spec.md](architecture_spec.md) for the tensor shapes and the complete model contract.
+The auxiliary predictor is used only for training. See [architecture_spec.md](architecture_spec.md) for the tensor
+shapes and complete model contract.
 
 ## Installation
 
-The checked-in [requirements.txt](requirements.txt) is a focused runtime lock derived from the working
-`/ssd_node5/jepa_copy` environment:
+The released environment was tested with Python 3.10.16, PyTorch 2.2.0, and CUDA 12.1. The full training recipe uses
+eight GPUs; the smoke-test mode runs the same model and data path on one GPU for one optimizer step.
 
-| Component | Tested version |
-|---|---|
-| Python | 3.10.16 |
-| PyTorch | 2.2.0 + CUDA 12.1 |
-| torchvision | 0.17.0 |
-| Transformers | 4.57.0 |
-| PEFT | 0.13.2 |
-| FlashAttention | 2.7.4.post1 |
-| TensorFlow / TFDS | 2.15.0 / 4.9.3 |
-| LIBERO-Plus | 0.1.0 |
-
-Install PyTorch first so that FlashAttention can build against it, then install the locked dependencies without build
-isolation:
+### 1. Create the environment
 
 ```bash
 git clone https://github.com/SpriteWithoutIce/JEPA_WAM.git
@@ -76,73 +91,207 @@ cd JEPA_WAM
 
 conda create -n jepa-wam python=3.10.16 -y
 conda activate jepa-wam
+```
 
+### 2. Install PyTorch and dependencies
+
+Install PyTorch first so FlashAttention can build against the active PyTorch installation:
+
+```bash
 pip install torch==2.2.0 torchvision==0.17.0 \
   --index-url https://download.pytorch.org/whl/cu121
+
 pip install -r requirements.txt --no-build-isolation
-pip install -e /path/to/LIBERO-Plus
 pip install -e .
 pip check
 ```
 
-The requirements file pins the OpenVLA `dlimp` fork to the exact commit tested by this repository. LIBERO-Plus remains
-an editable external checkout because its benchmark tasks, BDDL files, initial states, and assets are required at
-runtime.
+The checked-in [requirements.txt](requirements.txt) is the tested Python 3.10/CUDA 12.1 runtime lock. It pins the
+OpenVLA `dlimp` fork to the exact commit used during validation.
 
-Model weights, datasets, and simulator assets are not included in this repository.
+<details>
+<summary>Tested core versions</summary>
 
-## Required Assets
-
-The launchers contain the tested server paths below. Every value can be overridden with an environment variable.
-
-| Variable | Tested default |
+| Component | Version |
 |---|---|
-| `JEPA_ENV` | `/ssd_node5/jepa_copy` |
-| `LIBERO_DATA` | `/ssd/linyihan/datasets/modified_libero_rlds` |
-| `QWEN_PATH` | `/ssd/linyihan/ckpt/Qwen2.5-0.5B` |
-| `VJEPA_CKPT` | `/ssd/linyihan/ckpt/vjepa2_1_vitl_dist_vitG_384.pt` |
-| `BASE_VLM_RUN` | `/ssd/linyihan/ckpt/prism-qwen25-vjepa21-vitl-384px+0_5b+stage-finetune+x7` |
-| `LIBERO_PATH` | `/root/linyihan/LIBERO-plus` |
+| Python | 3.10.16 |
+| PyTorch / torchvision | 2.2.0 / 0.17.0 |
+| CUDA | 12.1 |
+| Transformers | 4.57.0 |
+| PEFT | 0.13.2 |
+| FlashAttention | 2.7.4.post1 |
+| TensorFlow / TFDS | 2.15.0 / 4.9.3 |
 
-`BASE_VLM_RUN` must contain the pretrained language-model and vision-projector weights:
+</details>
+
+Model weights, datasets, and simulator assets are not stored in this Git repository.
+
+## Data Preparation
+
+JEPA-WAM uses the no-op-filtered LIBERO datasets in RLDS format for training and the official LIBERO-Plus simulator
+and assets for robustness evaluation.
+
+### LIBERO RLDS training data
+
+Download [openvla/modified_libero_rlds](https://huggingface.co/datasets/openvla/modified_libero_rlds):
+
+```bash
+DATA_ROOT=/path/to/datasets
+
+hf download openvla/modified_libero_rlds \
+  --repo-type dataset \
+  --local-dir "${DATA_ROOT}/modified_libero_rlds"
+```
+
+The directory passed as `LIBERO_DATA` must contain these four TFDS datasets:
 
 ```text
-base_vlm_run/
+modified_libero_rlds/
+├── libero_spatial_no_noops/
+├── libero_object_no_noops/
+├── libero_goal_no_noops/
+└── libero_10_no_noops/
+```
+
+### LIBERO-Plus benchmark
+
+Clone the official [LIBERO-Plus repository](https://github.com/sylvestf/LIBERO-plus) and install it as an editable
+package:
+
+```bash
+git clone https://github.com/sylvestf/LIBERO-plus.git /path/to/LIBERO-plus
+pip install -e /path/to/LIBERO-plus
+pip install -r /path/to/LIBERO-plus/extra_requirements.txt
+```
+
+LIBERO-Plus also requires its extended simulator assets. Download `assets.zip` from the official
+[Sylvest/LIBERO-plus dataset repository](https://huggingface.co/datasets/Sylvest/LIBERO-plus):
+
+```bash
+hf download Sylvest/LIBERO-plus assets.zip \
+  --repo-type dataset \
+  --local-dir /path/to/libero_plus_assets
+
+unzip /path/to/libero_plus_assets/assets.zip \
+  -d /path/to/LIBERO-plus/libero/libero
+```
+
+After extraction, `/path/to/LIBERO-plus/libero/libero/assets` should contain the additional objects, scenes, and
+textures. Refer to the LIBERO-Plus installation guide for its system packages if MuJoCo or ImageMagick dependencies
+are missing on your machine.
+
+## Pretrained Models
+
+JEPA-WAM needs three groups of weights: the official Qwen2.5 language model, the official V-JEPA 2.1 visual encoder,
+and the JEPA-WAM base VLM/policy checkpoints.
+
+Set a common download root first:
+
+```bash
+ASSET_ROOT=/path/to/jepa_wam_assets
+mkdir -p "${ASSET_ROOT}"
+```
+
+### Qwen2.5-0.5B
+
+Download from the official [Qwen model repository](https://huggingface.co/Qwen/Qwen2.5-0.5B):
+
+```bash
+hf download Qwen/Qwen2.5-0.5B \
+  --local-dir "${ASSET_ROOT}/Qwen2.5-0.5B"
+```
+
+### V-JEPA 2.1 ViT-L/16
+
+Download the 384px ViT-L checkpoint listed by the official
+[V-JEPA 2 repository](https://github.com/facebookresearch/vjepa2#v-jepa-21-pretrained-checkpoints):
+
+```bash
+mkdir -p "${ASSET_ROOT}/vjepa2"
+wget \
+  https://dl.fbaipublicfiles.com/vjepa2/vjepa2_1_vitl_dist_vitG_384.pt \
+  -O "${ASSET_ROOT}/vjepa2/vjepa2_1_vitl_dist_vitG_384.pt"
+```
+
+### JEPA-WAM base VLM and policy
+
+The released checkpoints are hosted at [CokeAnd1ce/JEPA_WAM](https://huggingface.co/CokeAnd1ce/JEPA_WAM). The command
+below downloads the files required by the public training and evaluation launchers:
+
+```bash
+hf download CokeAnd1ce/JEPA_WAM \
+  "checkpoints/pretrained_vlm/prism-qwen25-vjepa21-vitl-384px+0_5b+stage-finetune+x7/config.json" \
+  "checkpoints/pretrained_vlm/prism-qwen25-vjepa21-vitl-384px+0_5b+stage-finetune+x7/checkpoints/latest-checkpoint.pt" \
+  "checkpoints/libero/jepavla-qwen25-vjepa-224px+0_5b+mx-libero-90+n1+b32+x7--visual-cosine-projector-allviews--20260723_232305/config.json" \
+  "checkpoints/libero/jepavla-qwen25-vjepa-224px+0_5b+mx-libero-90+n1+b32+x7--visual-cosine-projector-allviews--20260723_232305/dataset_statistics.json" \
+  "checkpoints/libero/jepavla-qwen25-vjepa-224px+0_5b+mx-libero-90+n1+b32+x7--visual-cosine-projector-allviews--20260723_232305/checkpoints/step-040000-epoch-37-loss=0.0262.pt" \
+  --local-dir "${ASSET_ROOT}/JEPA_WAM"
+```
+
+The base VLM directory must retain this structure:
+
+```text
+prism-qwen25-vjepa21-vitl-384px+0_5b+stage-finetune+x7/
 ├── config.json
 └── checkpoints/
     └── latest-checkpoint.pt
 ```
 
-The training data root must expose the four no-op-filtered RLDS datasets used by the fixed mixture:
+## Path Configuration
 
-```text
-libero_spatial_no_noops
-libero_object_no_noops
-libero_goal_no_noops
-libero_10_no_noops
+The launchers do not contain machine-specific paths. Export the following variables after downloading the data and
+weights:
+
+```bash
+export ASSET_ROOT=/path/to/jepa_wam_assets
+export LIBERO_DATA=/path/to/datasets/modified_libero_rlds
+export LIBERO_PATH=/path/to/LIBERO-plus
+
+export QWEN_PATH="${ASSET_ROOT}/Qwen2.5-0.5B"
+export VJEPA_CKPT="${ASSET_ROOT}/vjepa2/vjepa2_1_vitl_dist_vitG_384.pt"
+export BASE_VLM_RUN="${ASSET_ROOT}/JEPA_WAM/checkpoints/pretrained_vlm/prism-qwen25-vjepa21-vitl-384px+0_5b+stage-finetune+x7"
+export CHECKPOINT="${ASSET_ROOT}/JEPA_WAM/checkpoints/libero/jepavla-qwen25-vjepa-224px+0_5b+mx-libero-90+n1+b32+x7--visual-cosine-projector-allviews--20260723_232305/checkpoints/step-040000-epoch-37-loss=0.0262.pt"
 ```
+
+| Variable | Used by | Description |
+|---|---|---|
+| `LIBERO_DATA` | Training | Root containing the four modified LIBERO RLDS datasets |
+| `QWEN_PATH` | Both | Local Qwen2.5-0.5B directory |
+| `VJEPA_CKPT` | Both | V-JEPA 2.1 ViT-L checkpoint file |
+| `BASE_VLM_RUN` | Both | Pretrained JEPA-WAM base VLM run directory |
+| `LIBERO_PATH` | Evaluation | LIBERO-Plus repository checkout |
+| `CHECKPOINT` | Evaluation | Trained or released JEPA-WAM policy checkpoint |
 
 ## Training
 
-On the tested server, the fixed eight-GPU recipe can be launched directly because all asset paths are already defined
-in the script:
+### Full training recipe
+
+The public launcher implements the fixed eight-GPU configuration used by this release:
 
 ```bash
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
 bash vla-scripts/run_visual_cosine_primary.sh
 ```
 
-On another machine, override the same paths before launching:
+| Setting | Value |
+|---|---:|
+| GPUs | 8 |
+| Global / per-device batch size | 256 / 32 |
+| Training steps | 40,000 |
+| Learning rate / minimum learning rate | 2e-4 / 1e-5 |
+| LoRA rank / alpha / dropout | 32 / 64 / 0.1 |
+| Action horizon | 8 |
+| Paired-frame offset | 31 |
+| Visual cosine weight | 0.5 |
+| Random seed | 7 |
 
-```bash
-export LIBERO_DATA=/path/to/modified_libero_rlds
-export QWEN_PATH=/path/to/Qwen2.5-0.5B
-export VJEPA_CKPT=/path/to/vjepa2_1_vitl_checkpoint.pt
-export BASE_VLM_RUN=/path/to/pretrained_qwen25_vjepa_vlm_run
+Checkpoints and run metadata are written to `RUNS_DIR` (default: `./runs`). Console logs are written to `LOG_DIR`
+(default: `./logs`). Both locations can be overridden with environment variables.
 
-bash vla-scripts/run_visual_cosine_primary.sh
-```
+### One-step training smoke test
 
-Run a complete one-step training smoke test on one GPU with:
+Use smoke mode to validate model loading, all four datasets, forward/backward, the optimizer step, and checkpoint
+writing on one GPU:
 
 ```bash
 SMOKE_TEST=1 \
@@ -152,83 +301,55 @@ LOG_DIR=/tmp/jepa_wam_smoke_logs \
 bash vla-scripts/run_visual_cosine_primary.sh
 ```
 
-The smoke mode overrides only world size, batch size, shuffle buffer, and max steps. The model, loss, LIBERO mixture,
-V-JEPA/Qwen/base-VLM loading path, forward pass, backward pass, optimizer step, and checkpoint writer are unchanged.
+Smoke mode changes only world size, batch size, shuffle-buffer size, and maximum steps. It uses the same model, loss,
+data mixture, pretrained weights, and checkpoint code as the full run.
 
-The fixed configuration uses:
-
-| Setting | Value |
-|---|---:|
-| GPUs | 8 |
-| Global batch size | 256 |
-| Per-device batch size | 32 |
-| Training steps | 40,000 |
-| Learning rate | 2e-4 |
-| Minimum learning rate | 1e-5 |
-| LoRA rank / alpha / dropout | 32 / 64 / 0.1 |
-| Action horizon | 8 |
-| Paired-frame offset | 31 |
-| Visual cosine weight | 0.5 |
-| Random seed | 7 |
-
-Checkpoints and run metadata are written below `RUNS_DIR`, which defaults to `./runs`. Console logs are written below
-`LOG_DIR`, which defaults to `./logs`.
+To inspect the resolved command without starting training, set `DRY_RUN=1`.
 
 ## LIBERO-Plus Evaluation
 
-The evaluation launcher also contains tested defaults for the environment, reconstruction assets, and a local
-JEPA-WAM checkpoint. On the tested server:
+### Evaluate a checkpoint
+
+The following command evaluates the released policy on the LIBERO-Plus spatial suite across all perturbation
+categories:
 
 ```bash
-CUDA_VISIBLE_DEVICES=7 bash vla-scripts/libero_plus.sh
-```
-
-To evaluate another checkpoint or run on another machine:
-
-```bash
-export BASE_VLM_RUN=/path/to/pretrained_qwen25_vjepa_vlm_run
-export QWEN_PATH=/path/to/Qwen2.5-0.5B
-export VJEPA_CKPT=/path/to/vjepa2_1_vitl_checkpoint.pt
-export LIBERO_PATH=/path/to/LIBERO-Plus
-export CUDA_VISIBLE_DEVICES=0
-
+CUDA_VISIBLE_DEVICES=0 \
 bash vla-scripts/libero_plus.sh \
-  ./runs/<run-name>/checkpoints/latest-checkpoint.pt \
+  "${CHECKPOINT}" \
   libero_spatial \
   all \
   1
 ```
 
-The positional arguments are `CHECKPOINT`, `TASK_SUITE`, `CATEGORIES`, and `TRIALS`. Supported suites are
-`libero_spatial`, `libero_object`, `libero_goal`, `libero_10`, and `libero_90`. `CATEGORIES` can be `all` or a
-comma-separated list using the aliases `camera`, `robot`, `language`, `light`, `background`, `sensor`, and `layout`.
-When `CHECKPOINT` is omitted, the launcher selects the newest `RUNS_DIR/*/checkpoints/latest-checkpoint.pt`, then falls
-back to the tested server checkpoint.
+The positional arguments are:
 
-For a fast end-to-end check that constructs one environment and executes one predicted action:
+```text
+bash vla-scripts/libero_plus.sh CHECKPOINT TASK_SUITE CATEGORIES TRIALS
+```
+
+Supported task suites are `libero_spatial`, `libero_object`, `libero_goal`, `libero_10`, and `libero_90`.
+`CATEGORIES` accepts `all` or a comma-separated list of `camera`, `robot`, `language`, `light`, `background`, `sensor`,
+and `layout`.
+
+When `CHECKPOINT` is omitted, the launcher selects the newest
+`RUNS_DIR/*/checkpoints/latest-checkpoint.pt`. Evaluation logs are saved under `experiments/logs`, and rollout videos
+are saved under `rollout`.
+
+### Environment-to-action smoke test
+
+This diagnostic run constructs one LIBERO-Plus environment and executes one predicted action:
 
 ```bash
-CHECKPOINT=/path/to/checkpoints/latest-checkpoint.pt \
 CUDA_VISIBLE_DEVICES=0 \
 MAX_TASKS=1 \
 MAX_EPISODE_STEPS=1 \
 SAVE_ROLLOUTS=False \
-bash vla-scripts/libero_plus.sh
+bash vla-scripts/libero_plus.sh "${CHECKPOINT}" libero_spatial all 1
 ```
 
-`MAX_TASKS` and `MAX_EPISODE_STEPS` are diagnostic limits only. They default to disabled for the full benchmark.
-
-Evaluation logs are saved under `experiments/logs`, and rollout videos are saved under `rollout`.
-
-## End-to-End Validation
-
-The complete path was exercised in the reference environment on an H100 GPU:
-
-- `requirements.txt` resolved successfully, including the pinned `dlimp` commit, and `pip check` reported no conflicts.
-- A one-step training run loaded V-JEPA, Qwen, the base VLM, and all four LIBERO RLDS datasets.
-- The training smoke test completed forward, backward, optimizer update, and checkpoint save with loss `1.4728`.
-- The saved checkpoint was reconstructed by the evaluator and produced an action in a LIBERO-Plus environment.
-- The launcher's built-in JEPA-WAM checkpoint also completed the same environment-to-action smoke test.
+`MAX_TASKS` and `MAX_EPISODE_STEPS` are disabled by default and should not be set for full benchmark evaluation.
+Set `DRY_RUN=1` to print the evaluator command without launching MuJoCo.
 
 ## Results
 
@@ -238,38 +359,41 @@ JEPA-WAM reaches an average success rate of **79.2%** across the seven LIBERO-Pl
 |---:|---:|---:|---:|---:|---:|---:|---:|
 | 79.2 | 59.2 | 68.2 | 93.3 | 94.6 | 83.6 | 76.1 | **79.2** |
 
-Additional RoboTwin 2.0, ablation, and real-world results are available on the
+RoboTwin 2.0, ablation, and real-world experiment tables are available on the
 [project page](https://spritewithoutice.github.io/JEPA_WAM/).
+
+## Verification
+
+The complete workflow was exercised in the reference environment on an H100 GPU:
+
+- `requirements.txt` resolved successfully and `pip check` reported no dependency conflicts.
+- A one-step run loaded Qwen, V-JEPA, the base VLM, and all four LIBERO RLDS datasets.
+- Forward, backward, optimizer update, and checkpoint save completed with a smoke-test loss of `1.4728`.
+- The evaluator reconstructed a compatible checkpoint and produced an action in a LIBERO-Plus environment.
+
+Run the focused repository checks with:
+
+```bash
+python -m pytest tests/test_visual_token_cosine.py
+bash -n vla-scripts/run_visual_cosine_primary.sh
+bash -n vla-scripts/libero_plus.sh
+```
 
 ## Repository Structure
 
 ```text
 JEPA_WAM/
 ├── prismatic/                         # model, data, training, and checkpoint code
-│   └── training/train.py              # fixed distributed training implementation
+│   └── training/train.py              # distributed JEPA-WAM training entry point
 ├── experiments/robot/libero/          # LIBERO-Plus evaluator and environment helpers
 ├── vla-scripts/
-│   ├── run_visual_cosine_primary.sh   # training launcher
-│   └── libero_plus.sh                 # evaluation launcher
-├── tests/                              # focused architecture regression tests
+│   ├── run_visual_cosine_primary.sh   # fixed training launcher
+│   └── libero_plus.sh                 # LIBERO-Plus evaluation launcher
+├── tests/                              # architecture regression tests
 ├── docs/                               # GitHub Pages project site
-├── requirements.txt                    # tested Python 3.10 / CUDA 12.1 runtime lock
-└── architecture_spec.md               # fixed public architecture specification
+├── requirements.txt                    # tested Python 3.10/CUDA 12.1 runtime lock
+└── architecture_spec.md               # released architecture specification
 ```
-
-## Verification
-
-```bash
-pip install --dry-run --no-build-isolation -r requirements.txt
-pip check
-python -m pytest tests/test_visual_token_cosine.py
-bash -n vla-scripts/run_visual_cosine_primary.sh
-bash -n vla-scripts/libero_plus.sh
-```
-
-## Checkpoints
-
-Pretrained JEPA-WAM checkpoints and the base VLM checkpoint will be released soon.
 
 ## Citation
 
@@ -277,10 +401,13 @@ The paper and BibTeX entry will be added when the arXiv version is available.
 
 ## Acknowledgements
 
-This codebase builds on ideas and components from V-JEPA, Qwen, Prismatic/OpenVLA, GR00T-style flow matching, and
-LIBERO. We thank the authors of these projects for making their work available to the research community.
+JEPA-WAM builds on [V-JEPA 2](https://github.com/facebookresearch/vjepa2),
+[Qwen2.5](https://huggingface.co/Qwen/Qwen2.5-0.5B),
+[Prismatic VLMs](https://github.com/TRI-ML/prismatic-vlms), [OpenVLA](https://github.com/openvla/openvla), and
+[LIBERO-Plus](https://github.com/sylvestf/LIBERO-plus). We thank the authors for releasing their code, models,
+datasets, and benchmarks.
 
 ## License
 
-The code is released under the [MIT License](LICENSE). Third-party models, datasets, and simulators are distributed
-under their respective licenses.
+The code is released under the [MIT License](LICENSE). Third-party models, datasets, and simulators remain subject to
+their respective licenses.
