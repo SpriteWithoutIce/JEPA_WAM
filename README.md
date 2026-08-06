@@ -7,6 +7,9 @@
     <a href="https://spritewithoutice.github.io/JEPA_WAM/">
       <img src="https://img.shields.io/badge/Project-Page-2563eb?style=for-the-badge" alt="Project page" />
     </a>
+    <a href="https://github.com/SpriteWithoutIce/openpi_jepawam/tree/main">
+      <img src="https://img.shields.io/badge/%CF%800.5-OpenPI_Implementation-7c3aed?style=for-the-badge" alt="JEPA-WAM for OpenPI" />
+    </a>
     <a href="https://huggingface.co/CokeAnd1ce/JEPA_WAM">
       <img src="https://img.shields.io/badge/Models-Hugging_Face-ffd21e?style=for-the-badge" alt="Hugging Face models" />
     </a>
@@ -16,6 +19,12 @@
     <img src="https://img.shields.io/badge/arXiv-Coming_Soon-b31b1b?style=for-the-badge" alt="arXiv coming soon" />
   </p>
 </div>
+
+> [!IMPORTANT]
+> **π0.5 / OpenPI implementation:** JEPA-WAM's transition supervision can also be applied to a pretrained VLA while
+> preserving its original perception and action pathways. The complete π0.5 integration—including V-JEPA target
+> precomputation, training, checkpoint resume, and LIBERO/LIBERO-Plus rollout evaluation—is available in
+> **[SpriteWithoutIce/openpi_jepawam](https://github.com/SpriteWithoutIce/openpi_jepawam/tree/main)**.
 
 <p align="center">
   <img src="docs/assets/teaser.webp" alt="JEPA-WAM overview" width="760" />
