@@ -1,0 +1,43 @@
+# Tested runtime lock from /ssd_node5/jepa_copy (Python 3.10.16, CUDA 12.1).
+# Install PyTorch first, then install this file with --no-build-isolation so
+# flash-attn can compile against the already-installed torch package.
+
+absl-py==2.4.0
+accelerate==1.13.0
+bddl==3.6.0
+cloudpickle==3.1.2
+diffusers==0.30.3
+dlimp @ git+https://github.com/moojink/dlimp_openvla.git@040105d256bd28866cc6620621a3d5f7b6b91b46
+draccus==0.8.0
+easydict==1.13
+einops==0.8.2
+flash-attn==2.7.4.post1
+gym==0.26.2
+imageio==2.37.3
+imageio-ffmpeg==0.6.0
+jsonlines==4.0.0
+matplotlib==3.10.9
+mujoco==3.3.2
+ninja==1.13.0
+numba==0.66.0
+numpy==1.26.4
+opencv-python==4.11.0.86
+packaging==26.0
+peft==0.13.2
+pillow==12.2.0
+protobuf==4.25.9
+psutil==7.2.2
+pytest==9.1.1
+PyYAML==6.0.3
+rich==15.0.0
+robosuite==1.4.1
+scipy==1.15.3
+setuptools==82.0.1
+swanlab==0.6.1
+tensorflow==2.15.0
+tensorflow-datasets==4.9.3
+torch==2.2.0
+torchvision==0.17.0
+tqdm==4.67.3
+transformers==4.57.0
+wheel==0.46.3

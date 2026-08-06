@@ -65,12 +65,14 @@ def test_public_recipe_keeps_single_visual_cosine_architecture() -> None:
             REPO_ROOT / "prismatic" / "models" / "vlms" / "prismatic.py",
             REPO_ROOT / "prismatic" / "vla" / "datasets" / "datasets.py",
             REPO_ROOT / "prismatic" / "vla" / "materialize.py",
-            REPO_ROOT / "vla-scripts" / "train.py",
+            REPO_ROOT / "prismatic" / "training" / "train.py",
         )
     )
 
-    assert "--run_id_note visual-cosine-projector-allviews" in script
-    assert "--nproc-per-node 8" in script
+    assert 'RUN_ID_NOTE="visual-cosine-projector-allviews"' in script
+    assert 'NPROC_PER_NODE=8' in script
+    assert '--nproc-per-node "${NPROC_PER_NODE}"' in script
+    assert "--module prismatic.training.train" in script
     assert cfg.expected_world_size == 8
     assert cfg.global_batch_size == 256
     assert cfg.per_device_batch_size == 32
@@ -124,3 +126,38 @@ def test_removed_experimental_packages_are_not_published() -> None:
             assert not any(path.rglob("*.py"))
         else:
             assert not path.exists()
+
+
+def test_vla_scripts_only_expose_training_and_evaluation_launchers() -> None:
+    public_scripts = sorted(path.name for path in (REPO_ROOT / "vla-scripts").glob("*.sh"))
+    assert public_scripts == ["libero_plus.sh", "run_visual_cosine_primary.sh"]
+    assert not (REPO_ROOT / "vla-scripts" / "train.py").exists()
+
+
+def test_libero_plus_launcher_matches_native_checkpoint_evaluator() -> None:
+    launcher = (REPO_ROOT / "vla-scripts" / "libero_plus.sh").read_text()
+    evaluator = (REPO_ROOT / "experiments" / "robot" / "libero" / "run_libero_eval.py").read_text()
+
+    for option in (
+        "--pretrained_checkpoint",
+        "--base_vlm",
+        "--llm_checkpoint_path",
+        "--vjepa_checkpoint_path",
+        "--task_suite_name",
+        "--libero_plus_categories",
+        "--num_trials_per_task",
+        "--save_rollouts",
+    ):
+        assert option in launcher
+        assert option.removeprefix("--") in evaluator
+
+    for removed_option in (
+        "--model_family",
+        "--action_head_type",
+        "--num_images_in_input",
+        "--rotation_representation",
+        "--use_aux_head",
+        "--use_minivlm",
+        "--use_wandb",
+    ):
+        assert removed_option not in launcher

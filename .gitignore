@@ -155,3 +155,4 @@ outputs/
 runs/
 logs/
 eval_log/
+.libero_plus_config/

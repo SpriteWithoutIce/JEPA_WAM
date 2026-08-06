@@ -11,13 +11,12 @@ Notes & Prerequisites:
     - If you want to suppress random Tensorflow logs --> `export TF_CPP_MIN_LOG_LEVEL=3`
 
 Run with:
-    - [Single Node One-GPU (Debug)] : torchrun --standalone --nnodes 1 --nproc-per-node 1 vla-scripts/train.py
-    - [Single Node Multi-GPU (= $K)]: torchrun --standalone --nnodes 1 --nproc-per-node $K vla-scripts/train.py
+    - [Single Node One-GPU (Debug)] : torchrun --standalone --nnodes 1 --nproc-per-node 1 --module prismatic.training.train
+    - [Single Node Multi-GPU (= $K)]: torchrun --standalone --nnodes 1 --nproc-per-node $K --module prismatic.training.train
 """
 
 import json
 import os
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, Tuple, Union
@@ -26,11 +25,6 @@ import draccus
 import torch
 import torch.distributed as dist
 import yaml
-
-# Force local repo imports ahead of any external `prismatic` checkout on PYTHONPATH.
-REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
 
 from prismatic.conf import VLAConfig, VLARegistry
 from prismatic.models import load_vla
