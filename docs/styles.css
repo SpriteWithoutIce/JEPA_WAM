@@ -76,13 +76,6 @@ video {
   text-align: center;
 }
 
-.project-logo {
-  width: 96px;
-  height: 96px;
-  margin: 0 auto 18px;
-  object-fit: contain;
-}
-
 h1,
 h2,
 h3,
@@ -379,12 +372,17 @@ figcaption {
 
 .data-table .ours td {
   background: #f1f6ff;
-  font-weight: 650;
 }
 
 .data-table .ours td:first-child {
   color: var(--blue-dark);
   background: #e8f0ff;
+  font-weight: 650;
+}
+
+.data-table strong {
+  color: #111827;
+  font-weight: 800;
 }
 
 .table-caption {
