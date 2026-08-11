@@ -2,10 +2,10 @@
 
 This directory is a dependency-free, single-column project page for GitHub Pages.
 
-Before the public launch, update the project links in `index.html`:
+The public project links in `index.html` are:
 
-- Replace the disabled Paper element with an anchor to the final ArXiv URL.
-- Remove the `Coming soon` label from Code when the repository is public.
+- Paper: https://arxiv.org/abs/2608.09381
+- Code: https://github.com/SpriteWithoutIce/JEPA_WAM
 
 The deployment workflow publishes this directory from the `main` branch. The site can also be
 served locally from the repository root with:

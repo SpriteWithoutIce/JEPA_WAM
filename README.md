@@ -16,7 +16,9 @@
     <a href="docs/assets/demo.mp4">
       <img src="https://img.shields.io/badge/Demo-Video-16a34a?style=for-the-badge" alt="Demo video" />
     </a>
-    <img src="https://img.shields.io/badge/arXiv-Coming_Soon-b31b1b?style=for-the-badge" alt="arXiv coming soon" />
+    <a href="https://arxiv.org/abs/2608.09381">
+      <img src="https://img.shields.io/badge/arXiv-2608.09381-b31b1b?style=for-the-badge" alt="arXiv 2608.09381" />
+    </a>
   </p>
 </div>
 
@@ -43,7 +45,8 @@ one training launcher, one evaluation launcher, the model implementation, and fo
 - [x] Training and LIBERO-Plus evaluation code
 - [x] Pretrained base VLM and LIBERO policy checkpoint
 - [x] Project page and demo
-- [ ] arXiv paper and BibTeX
+- [x] arXiv paper
+- [ ] BibTeX citation entry
 
 ## Highlights
 
@@ -406,7 +409,7 @@ JEPA_WAM/
 
 ## Citation
 
-The paper and BibTeX entry will be added when the arXiv version is available.
+The paper is available on [arXiv:2608.09381](https://arxiv.org/abs/2608.09381). The BibTeX entry will be added soon.
 
 ## Acknowledgements
 
