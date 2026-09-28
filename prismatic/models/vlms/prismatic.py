@@ -233,10 +233,21 @@ class PrismaticVLM(VLM):
         fused_attention_mask: torch.Tensor,
         num_action_tokens: int,
     ) -> torch.Tensor:
-        """Use the final action-placeholder span from the padded sequence."""
-        if llm_hidden.shape[1] < num_action_tokens:
-            raise ValueError("Input sequence is shorter than the configured action placeholder span.")
-        return llm_hidden[:, -num_action_tokens:, :]
+        """Gather each sample's action-placeholder span before its right padding."""
+        if llm_hidden.ndim != 3 or fused_attention_mask.shape != llm_hidden.shape[:2]:
+            raise ValueError("Expected hidden states [B, L, D] and a matching attention mask [B, L].")
+        if num_action_tokens <= 0:
+            raise ValueError("The configured action placeholder span must be positive.")
+        valid_mask = fused_attention_mask.bool()
+        if torch.any(valid_mask[:, 1:] & ~valid_mask[:, :-1]):
+            raise ValueError("Action memory selection requires contiguous right-padded sequences.")
+        sequence_lengths = valid_mask.sum(dim=1)
+        if torch.any(sequence_lengths < num_action_tokens):
+            raise ValueError("A valid input sequence is shorter than the configured action placeholder span.")
+        positions = sequence_lengths[:, None] - num_action_tokens + torch.arange(
+            num_action_tokens, device=llm_hidden.device
+        )[None, :]
+        return llm_hidden.gather(1, positions[:, :, None].expand(-1, -1, llm_hidden.shape[-1]))
 
     def forward(
         self,

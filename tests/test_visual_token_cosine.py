@@ -38,7 +38,7 @@ def test_visual_token_cosine_is_zero_for_identical_normalized_embeddings() -> No
     torch.testing.assert_close(loss, torch.zeros_like(loss), atol=1e-6, rtol=0.0)
 
 
-def test_action_memory_uses_last_sequence_tokens_per_sample() -> None:
+def test_action_memory_uses_last_valid_tokens_per_sample() -> None:
     hidden = torch.arange(20, dtype=torch.float32).reshape(2, 10, 1)
     attention_mask = torch.tensor(
         [
@@ -51,7 +51,7 @@ def test_action_memory_uses_last_sequence_tokens_per_sample() -> None:
     selected = PrismaticVLM._select_action_memory(hidden, attention_mask, num_action_tokens=3)
 
     torch.testing.assert_close(selected[0, :, 0], torch.tensor([7.0, 8.0, 9.0]))
-    torch.testing.assert_close(selected[1, :, 0], torch.tensor([17.0, 18.0, 19.0]))
+    torch.testing.assert_close(selected[1, :, 0], torch.tensor([14.0, 15.0, 16.0]))
 
 
 def test_action_loss_averages_the_full_chunk(monkeypatch) -> None:

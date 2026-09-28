@@ -56,6 +56,10 @@ class PaddedCollatorForActionPrediction:
 
     def __call__(self, instances: Sequence[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
         input_ids = [instance["input_ids"] for instance in instances]
+        if any(tokens.shape[0] > self.model_max_length for tokens in input_ids):
+            raise ValueError(
+                "Input sequence exceeds model_max_length; truncation would remove action placeholders."
+            )
         pixel_values = [instance["pixel_values"] for instance in instances]
         pair_pixel_values = [instance.get("pair_pixel_values") for instance in instances]
         pair_pixel_values_wrist = [instance.get("pair_pixel_values_wrist") for instance in instances]
@@ -67,9 +71,6 @@ class PaddedCollatorForActionPrediction:
 
         assert self.padding_side == "right", f"Invalid Tokenizer `{self.padding_side = }`"
         input_ids = pad_sequence(input_ids, batch_first=True, padding_value=self.pad_token_id)
-
-        # Truncate (if necessary)
-        input_ids = input_ids[:, : self.model_max_length]
 
         # Get `attention_mask` by checking for `pad_token_id`
         attention_mask = input_ids.ne(self.pad_token_id)
