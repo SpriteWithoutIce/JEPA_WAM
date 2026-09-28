@@ -53,8 +53,13 @@ The final Qwen layer produces:
 ```text
 qwen_hidden: [B, S, D_llm]
 visual_hidden = qwen_hidden[:, 1 : 1 + V * N]
-action_memory = qwen_hidden[:, -N_action_placeholders:]
+action_memory = PrismaticVLM._select_action_memory(qwen_hidden, fused_attention_mask, N_action_placeholders)
 ```
+
+Training batches use right padding. Action memory gathers the final
+`N_action_placeholders` valid positions of each sample, excluding PAD positions.
+The collator rejects sequences exceeding `model_max_length` to avoid truncating
+the appended action placeholders.
 
 ## 4. Flow-Matching Action Head
 
